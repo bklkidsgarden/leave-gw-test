@@ -133,9 +133,15 @@ const Gw = (() => {
     return { meta: JSON.parse(td.decode(bytes.subarray(4, 4 + n))), body: bytes.subarray(4 + n) };
   }
 
+  // Apps Script 平常一趟 1～2 秒，但 Google 那端偶爾會慢到 10～40 秒（實測過）。
+  // 超過這個時間就放棄等待並說明原因，不讓畫面一直停在「載入中…」。
+  const RUN_TIMEOUT_MS = 45000;
+
   /** 呼叫 Apps Script 開放的函式（relay／ping／gatewayInfo）。 */
   async function run(fn, ...args) {
     let r;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), RUN_TIMEOUT_MS);
     try {
       r = await fetch(EXEC_URL, {
         method: 'POST',
@@ -143,9 +149,13 @@ const Gw = (() => {
         redirect: 'follow',
         headers: { 'content-type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: 'call', fn, args }),
+        signal: ctrl.signal,
       });
     } catch (e) {
+      if (e.name === 'AbortError') throw friendly('slow', 'Google 轉送服務這次回應太慢（超過 45 秒）');
       throw friendly('network', '網路連不上，請確認手機有網路後再試一次');
+    } finally {
+      clearTimeout(timer);
     }
     if (!r.ok) throw friendly('apps-script', '轉送服務暫時有問題（HTTP ' + r.status + '），請稍後再試');
     const d = await r.json();
@@ -171,7 +181,17 @@ const Gw = (() => {
       s.key, frame(meta, body || new Uint8Array(0))));
     const env = JSON.stringify({ v: 1, epk: s.epk, iv: b64.enc(iv), ct: b64.enc(ct) });
 
-    const relayed = JSON.parse(await run('relay', env));
+    let relayed;
+    try {
+      relayed = JSON.parse(await run('relay', env));
+    } catch (e) {
+      // 送出資料時逾時：Google 那端可能其實已經處理完了，直接重送會變成重複送出。
+      if (e.kind === 'slow' && meta.method !== 'GET') {
+        throw friendly('slow', e.message + '。這筆資料可能已經送出了，請先到「我的假單」確認，不要直接再送一次');
+      }
+      if (e.kind === 'slow') throw friendly('slow', e.message + '，請再試一次');
+      throw e;
+    }
     if (relayed.status === 429) throw friendly('busy', '系統忙碌中，請過一分鐘再試');
     if (relayed.status === 0) throw friendly('offline', '主機目前連不上（可能正在重新啟動），請稍後再試');
     if (relayed.status === 413) throw friendly('too-large', '檔案太大，送不出去');
