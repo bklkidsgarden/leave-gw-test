@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src blob: mediastream:; manifest-src &#x27;self&#x27;; connect-src https://script.google.com https://script.googleusercontent.com; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="請假測試">
+<title>柏克來請假系統（測試環境）</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style id="appcss"></style>
+<style>
+/* 外殼頁自己的元件。系統頁面的樣式另外抓（#appcss），這裡不碰系統的版面。 */
+#busy { position: fixed; top: 8px; right: 8px; z-index: 50; background: #111827; color: #fff;
+  padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+#sheet { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 60;
+  background: #fff; border: 1px solid #d1d5db; border-radius: 12px; padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18); font-size: 15px; color: #111827; }
+.sheet-title { margin: 0 0 8px; font-weight: 700; word-break: break-all; }
+.sheet-row { display: flex; flex-wrap: wrap; gap: 8px; }
+#sheet button { font-size: 15px; padding: 8px 14px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #111827; }
+#sheet button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+#sheet button.ghost { border-color: transparent; color: #6b7280; }
+#toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 70; background: #111827;
+  color: #fff; padding: 8px 14px; border-radius: 999px; font-size: 14px; }
+.shell-note { padding: 24px 16px; color: #6b7280; text-align: center; }
+.shell-error { margin: 10px; padding: 10px 14px; border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b;
+  border-radius: 10px; font-size: 14px; }
+.shell-error p { margin: 0 0 8px; }
+.shell-error button { font-size: 14px; padding: 6px 12px; border-radius: 8px; border: 1px solid #fca5a5; background: #fff; color: #991b1b; }
+#fatal { margin: 8px; padding: 8px 12px; border: 2px solid #dc2626; border-radius: 10px; background: #fef2f2;
+  color: #991b1b; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+[hidden] { display: none !important; }
+
+</style>
+<script>
+// 任何沒接住的錯誤都直接印在畫面上：手機上沒有開發者工具，看不到主控台。
+window.addEventListener('error', function (e) { showFatal((e.message || '程式錯誤') + (e.lineno ? '（第 ' + e.lineno + ' 行）' : '')); });
+window.addEventListener('unhandledrejection', function (e) { showFatal('未處理的錯誤：' + ((e.reason && e.reason.message) || e.reason)); });
+function showFatal(t) {
+  var d = document.getElementById('fatal');
+  if (!d) return;
+  d.hidden = false;
+  d.textContent += '⚠️ ' + t + '\n';
+}
+</script>
+</head>
+<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://script.google.com/macros/s/AKfycbykNwEIsFtSzXOyY0nyaHGOuxsd1EMAKh3thsO3YnPIhcE2oj8sZJzEczghVcwrAzsI9g/exec">
+<pre id="fatal" hidden></pre>
+<div id="busy" hidden>連線中…</div>
+<div id="sheet" hidden></div>
+<div id="app"><p class="shell-note">載入中…</p></div>
+<script>
+/* 外殼頁 ↔ 主機的加密通道（端對端）。協定與主機端 gateway/protocol.py 相同。
+ *
+ * 每次開頁產生一把一次性的 ECDH P-256 金鑰，跟主機的公鑰（內建在頁面上）算出共用金鑰，
+ * 經 HKDF-SHA256 變成 AES-256-GCM 金鑰。請求與回應都用它加密，
+ * Apps Script 只負責把密文轉送出去，看不到內容。
+ *
+ * 呼叫 Apps Script 一律 fetch + credentials: 'omit'：不帶 Google 的 Cookie，Google 把它當匿名訪客，
+ * 瀏覽器登了幾個 Google 帳號都無關。Content-Type 用 text/plain 才不會觸發 CORS 預檢（Apps Script 不回應 OPTIONS）。
+ */
+const Gw = (() => {
+  const te = new TextEncoder();
+  const td = new TextDecoder();
+  const PUBKEY = document.body.dataset.pubkey;
+  const EXEC_URL = document.body.dataset.exec;
+
+  const b64 = {
+    enc(bytes) {
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      }
+      return btoa(s);
+    },
+    dec(str) {
+      const s = atob(str);
+      const out = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+      return out;
+    },
+  };
+  const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+
+  /** 這台裝置的匿名代號：主機拿來限流與寫操作紀錄。存不了就每次開頁換一個。 */
+  const DEVICE = (() => {
+    const KEY = 'gw.device';
+    try {
+      let d = localStorage.getItem(KEY);
+      if (!d) { d = hex(crypto.getRandomValues(new Uint8Array(12))); localStorage.setItem(KEY, d); }
+      return d;
+    } catch (e) {
+      return hex(crypto.getRandomValues(new Uint8Array(12)));
+    }
+  })();
+
+  let sessionP = null;
+  function session() {
+    if (!sessionP) {
+      sessionP = (async () => {
+        const serverPub = await crypto.subtle.importKey(
+          'raw', b64.dec(PUBKEY), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+        const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+        const epk = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+        const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: serverPub }, kp.privateKey, 256);
+        const ikm = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+        const key = await crypto.subtle.deriveKey(
+          { name: 'HKDF', hash: 'SHA-256', salt: epk, info: te.encode('bk-gw-v1') },
+          ikm, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+        return { epk: b64.enc(epk), key };
+      })().catch((e) => { sessionP = null; throw e; });
+    }
+    return sessionP;
+  }
+
+  function frame(meta, body) {
+    const m = te.encode(JSON.stringify(meta));
+    const out = new Uint8Array(4 + m.length + body.length);
+    new DataView(out.buffer).setUint32(0, m.length);
+    out.set(m, 4);
+    out.set(body, 4 + m.length);
+    return out;
+  }
+
+  function unframe(bytes) {
+    const n = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0);
+    return { meta: JSON.parse(td.decode(bytes.subarray(4, 4 + n))), body: bytes.subarray(4 + n) };
+  }
+
+  /** 呼叫 Apps Script 開放的函式（relay／ping／gatewayInfo）。 */
+  async function run(fn, ...args) {
+    let r;
+    try {
+      r = await fetch(EXEC_URL, {
+        method: 'POST',
+        credentials: 'omit',
+        redirect: 'follow',
+        headers: { 'content-type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'call', fn, args }),
+      });
+    } catch (e) {
+      throw friendly('network', '網路連不上，請確認手機有網路後再試一次');
+    }
+    if (!r.ok) throw friendly('apps-script', '轉送服務暫時有問題（HTTP ' + r.status + '），請稍後再試');
+    const d = await r.json();
+    if (!d.ok) throw friendly('apps-script', '轉送服務拒絕了這次呼叫');
+    return d.result;
+  }
+
+  function friendly(kind, message) {
+    const e = new Error(message);
+    e.kind = kind;
+    return e;
+  }
+
+  /** 送一筆請求到主機。req = {method, path, headers}；body 為 Uint8Array（可省略）。 */
+  async function call(req, body) {
+    const s = await session();
+    const id = hex(crypto.getRandomValues(new Uint8Array(16)));
+    const meta = { id, ts: Date.now(), method: req.method || 'GET', path: req.path,
+                   headers: req.headers || {}, client: DEVICE };
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, additionalData: te.encode('bk-gw-req-v1') },
+      s.key, frame(meta, body || new Uint8Array(0))));
+    const env = JSON.stringify({ v: 1, epk: s.epk, iv: b64.enc(iv), ct: b64.enc(ct) });
+
+    const relayed = JSON.parse(await run('relay', env));
+    if (relayed.status === 429) throw friendly('busy', '系統忙碌中，請過一分鐘再試');
+    if (relayed.status === 0) throw friendly('offline', '主機目前連不上（可能正在重新啟動），請稍後再試');
+    if (relayed.status === 413) throw friendly('too-large', '檔案太大，送不出去');
+    if (relayed.status !== 200) throw friendly('gateway', '主機拒絕了這次請求（' + relayed.status + '），請重新整理頁面再試');
+    const res = JSON.parse(relayed.body);
+    const plain = new Uint8Array(await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: b64.dec(res.iv), additionalData: te.encode('bk-gw-res-v1:' + id) },
+      s.key, b64.dec(res.ct)));
+    const { meta: rm, body: rb } = unframe(plain);
+    if (rm.id !== id) throw friendly('gateway', '回應對不上請求，請重新整理頁面');
+    return { status: rm.status, headers: rm.headers || {}, body: rb };
+  }
+
+  return { call, run };
+})();
+
+</script>
+<script>
+/* 外殼頁：把請假系統原本的頁面「搬進來」顯示，攔下連結、表單、圖片、下載與開新視窗，改走 Gw 加密通道。
+ * 系統那邊的頁面不需要知道自己是被這樣呈現的。
+ *
+ * 系統發的 Cookie 由 Jar 代管：外殼頁在 github.io 上，瀏覽器的 Cookie 送不到主機。
+ * 目前看的頁面記在網址的 # 後面（#p=/apply），重新整理、返回鍵、信裡的連結都靠它；
+ * # 後面的部分瀏覽器不會送給任何伺服器。
+ */
+
+/** 代管系統發的 Cookie。存得進 localStorage 就存（關掉瀏覽器還在），存不進就只放記憶體。 */
+const Jar = (() => {
+  const KEY = 'gw.jar';
+  let mem = {};
+  try { mem = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { /* 存不了就只放記憶體 */ }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 同上 */ } };
+  return {
+    header() {
+      const now = Date.now();
+      return Object.entries(mem).filter(([, c]) => !c.exp || c.exp > now)
+        .map(([k, c]) => k + '=' + c.val).join('; ');
+    },
+    update(list) {
+      for (const sc of list || []) {
+        const [nv, ...attrs] = sc.split(';').map((s) => s.trim());
+        const i = nv.indexOf('=');
+        if (i < 1) continue;
+        const name = nv.slice(0, i);
+        const val = nv.slice(i + 1).replace(/^"|"$/g, '');
+        let exp = null;
+        for (const a of attrs) {
+          const j = a.indexOf('=');
+          const k = (j < 0 ? a : a.slice(0, j)).toLowerCase();
+          const v = j < 0 ? '' : a.slice(j + 1);
+          if (k === 'max-age') exp = Date.now() + Number(v) * 1000;
+          else if (k === 'expires' && exp === null) exp = Date.parse(v);
+        }
+        if (!val || (exp !== null && exp <= Date.now())) delete mem[name];
+        else mem[name] = { val, exp };
+      }
+      save();
+    },
+  };
+})();
+
+/** 檔案下載。Phase 0 實測：iPhone「直接下載」可以，Android「開新視窗」可以，兩個都給。 */
+const Downloads = (() => {
+  const sheet = document.getElementById('sheet');
+
+  function close() { sheet.hidden = true; sheet.replaceChildren(); }
+
+  function button(label, fn, cls) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function offer(bytes, type, name) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: type || 'application/octet-stream' }));
+    setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+    const title = document.createElement('p');
+    title.className = 'sheet-title';
+    title.textContent = '📄 ' + name + '（' + Math.max(1, Math.round(bytes.length / 1024)) + ' KB）';
+    const row = document.createElement('div');
+    row.className = 'sheet-row';
+    row.append(
+      button('下載', () => {
+        const a = document.createElement('a');
+        a.href = url; a.download = name;
+        document.body.append(a); a.click(); a.remove();
+      }, 'primary'),
+      button('開新視窗', () => window.open(url, '_blank')),
+      button('關閉', close, 'ghost'));
+    sheet.replaceChildren(title, row);
+    sheet.hidden = false;
+  }
+
+  return { offer, close };
+})();
+
+const Shell = (() => {
+  const app = document.getElementById('app');
+  const busy = document.getElementById('busy');
+  const appcss = document.getElementById('appcss');
+  const ORIGIN = 'https://app.invalid';
+  const td = new TextDecoder();
+  let current = '/';
+  let cssHref = '';
+  let pageBlobs = [];
+  let navSeq = 0;
+
+  /** 相對於目前頁面解析網址；不是系統內的網址回 null。 */
+  function resolve(href) {
+    if (!href || href.startsWith('#') || /^(javascript|mailto|tel):/i.test(href)) return null;
+    const u = new URL(href, ORIGIN + current);
+    return u.origin === ORIGIN ? u.pathname + u.search : null;
+  }
+
+  function locationPath(loc) {
+    if (loc.startsWith('/')) return loc;
+    try { const u = new URL(loc); return u.pathname + u.search; } catch (e) { return '/'; }
+  }
+
+  function filename(disp) {
+    const star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disp);
+    if (star) { try { return decodeURIComponent(star[1]); } catch (e) { /* 用下面的 */ } }
+    const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disp);
+    return plain ? plain[1] : 'download';
+  }
+
+  function readHash() {
+    const m = /(?:^|&)p=([^&]+)/.exec(location.hash.replace(/^#/, ''));
+    let p = '/';
+    if (m) { try { p = decodeURIComponent(m[1]); } catch (e) { p = '/'; } }
+    return p.startsWith('/') && !p.startsWith('//') ? p : '/';
+  }
+
+  function setHash(path, push) {
+    const url = '#p=' + encodeURIComponent(path);
+    if (location.hash === url) return;
+    (push ? history.pushState : history.replaceState).call(history, null, '', url);
+  }
+
+  async function request(method, path, body, contentType) {
+    const headers = { accept: 'text/html' };
+    const c = Jar.header();
+    if (c) headers.cookie = c;
+    if (contentType) headers['content-type'] = contentType;
+    const r = await Gw.call({ method, path, headers }, body);
+    Jar.update(r.headers['set-cookie']);
+    return r;
+  }
+
+  async function fetchBlobUrl(path) {
+    const r = await request('GET', path);
+    if (r.status !== 200) throw new Error('HTTP ' + r.status);
+    return URL.createObjectURL(new Blob([r.body], { type: r.headers['content-type'] || 'application/octet-stream' }));
+  }
+
+  async function go(method, path, body, contentType, opts = {}) {
+    const seq = ++navSeq;
+    busy.hidden = false;
+    try {
+      let r = await request(method, path, body, contentType);
+      for (let hops = 0; r.status >= 300 && r.status < 400 && r.headers.location; hops++) {
+        if (hops >= 5) throw new Error('轉址次數過多');
+        path = locationPath(r.headers.location);
+        r = await request('GET', path);
+      }
+      if (seq !== navSeq) return;                    // 使用者已經點了別的，這個結果不要了
+      const ctype = r.headers['content-type'] || '';
+      const disp = r.headers['content-disposition'] || '';
+      if (/^attachment/i.test(disp)) return Downloads.offer(r.body, ctype, filename(disp));
+      if (ctype.startsWith('text/html')) {
+        await render(td.decode(r.body), path);
+        setHash(path, !opts.replace && path !== readHash());
+        return;
+      }
+      if (r.status >= 400) throw new Error(td.decode(r.body).slice(0, 200) || 'HTTP ' + r.status);
+      Downloads.offer(r.body, ctype, path.split('?')[0].split('/').pop() || 'download');
+    } catch (e) {
+      if (seq === navSeq) showError(e, method === 'GET' ? () => go('GET', path, null, null, opts) : null);
+    } finally {
+      if (seq === navSeq) busy.hidden = true;
+    }
+  }
+
+  async function render(html, path) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    // 樣式表：網址（含版本號）變了才重抓。
+    const link = doc.querySelector('link[rel="stylesheet"][href]');
+    const href = link && resolve(link.getAttribute('href'));
+    if (href && href !== cssHref) {
+      try {
+        const r = await request('GET', href);
+        if (r.status === 200) { appcss.textContent = td.decode(r.body); cssHref = href; }
+      } catch (e) { /* 沒樣式也能用 */ }
+    }
+
+    // 圖片先在還沒放進畫面的文件上改掉 src，免得瀏覽器拿相對路徑去打 github.io。
+    for (const img of doc.querySelectorAll('img[src]')) {
+      const p = resolve(img.getAttribute('src'));
+      if (!p) continue;
+      img.removeAttribute('src');
+      img.dataset.src = p;
+    }
+
+    pageBlobs.forEach((u) => URL.revokeObjectURL(u));
+    pageBlobs = [];
+    Downloads.close();
+    app.replaceChildren(...Array.from(doc.body.childNodes, (n) => document.importNode(n, true)));
+    // 搬進來的 <script> 不會自己執行，要重建一份。外面包一層 { }：
+    // 頁面最外層的 const／let（例如請假頁的 const mode）第二次進同一頁才不會「已宣告」報錯；
+    // function 宣告照舊變成全域，行內 onsubmit="return twoStep(…)" 叫得到。
+    for (const old of app.querySelectorAll('script')) {
+      const s = document.createElement('script');
+      s.textContent = '{\n' + old.textContent + '\n}';
+      old.replaceWith(s);
+    }
+    current = path;
+    if (doc.title) document.title = doc.title;
+    window.scrollTo(0, 0);
+
+    for (const img of app.querySelectorAll('img[data-src]')) {
+      fetchBlobUrl(img.dataset.src)
+        .then((url) => { pageBlobs.push(url); img.src = url; })
+        .catch(() => { img.alt = '（圖片載入失敗）'; });
+    }
+  }
+
+  /** target=_blank：一定要在點擊當下就開視窗，不然會被當成彈出廣告擋掉，之後再把內容填進去。 */
+  function openInNewWindow(path) {
+    const w = window.open('', '_blank');
+    if (!w) { toast('新視窗被瀏覽器擋下來了'); return; }
+    try { w.document.title = '載入中…'; w.document.body.textContent = '載入中…'; } catch (e) { /* 無妨 */ }
+    fetchBlobUrl(path).then((url) => {
+      w.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+    }).catch((e) => { try { w.close(); } catch (_) { /* 無妨 */ } toast('打不開：' + e.message); });
+  }
+
+  /** 證明文件在手機上先縮小再傳：5MB 原圖經 Google 要 10～20 秒（Phase 0 實測），縮成長邊 1600px 只要一兩秒。 */
+  async function shrinkImages(fd) {
+    for (const [name, v] of Array.from(fd.entries())) {
+      if (!(v instanceof File) || v.size <= 1024 * 1024 || !/^image\/(jpeg|png|webp|heic|heif)$/i.test(v.type)) continue;
+      try {
+        const small = await shrink(v, 1600);
+        if (small && small.size < v.size) {
+          fd.set(name, new File([small], v.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        }
+      } catch (e) { /* 縮不了就照原檔送 */ }
+    }
+  }
+
+  async function shrink(file, max) {
+    let src;
+    try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) {
+      src = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+    const k = Math.min(1, max / Math.max(src.width, src.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(src.width * k);
+    c.height = Math.round(src.height * k);
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    return new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', 0.85));
+  }
+
+  async function submitForm(form, submitter) {
+    // 按鈕上的 formaction／formmethod／formenctype 優先（例如人事後台的「重設密碼」按鈕）。
+    const attr = (name, fallback) => {
+      const own = submitter && submitter.getAttribute('form' + name);
+      return own || form.getAttribute(name) || fallback;
+    };
+    const method = attr('method', 'GET').toUpperCase();
+    const action = resolve(attr('action', current)) || current;
+    const enctype = attr('enctype', 'application/x-www-form-urlencoded').toLowerCase();
+    let fd;
+    try { fd = submitter ? new FormData(form, submitter) : new FormData(form); } catch (e) { fd = new FormData(form); }
+    if (submitter && submitter.name && !fd.has(submitter.name)) fd.append(submitter.name, submitter.value);
+
+    if (method === 'GET') {
+      const qs = new URLSearchParams(fd).toString();
+      return go('GET', action.split('?')[0] + (qs ? '?' + qs : ''));
+    }
+    let body;
+    let ct;
+    if (enctype === 'multipart/form-data') {
+      busy.hidden = false;
+      await shrinkImages(fd);
+      const r = new Response(fd);
+      ct = r.headers.get('content-type');
+      body = new Uint8Array(await r.arrayBuffer());
+    } else {
+      ct = 'application/x-www-form-urlencoded';
+      body = new TextEncoder().encode(new URLSearchParams(fd).toString());
+    }
+    return go('POST', action, body, ct);
+  }
+
+  function showError(e, retry) {
+    const box = document.createElement('div');
+    box.className = 'shell-error';
+    const p = document.createElement('p');
+    p.textContent = '⚠️ ' + (e && e.message ? e.message : String(e));
+    box.append(p);
+    if (retry) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = '再試一次';
+      b.addEventListener('click', () => { box.remove(); retry(); });
+      box.append(b);
+    }
+    app.querySelectorAll('.shell-error').forEach((n) => n.remove());
+    app.prepend(box);
+    window.scrollTo(0, 0);
+  }
+
+  let toastTimer = null;
+  function toast(text) {
+    let t = document.getElementById('toast');
+    if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.append(t); }
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 4000);
+  }
+
+  app.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || e.defaultPrevented) return;
+    const p = resolve(a.getAttribute('href'));
+    if (!p) {
+      if (!a.getAttribute('href').startsWith('#')) { a.target = '_blank'; a.rel = 'noopener'; }
+      return;
+    }
+    e.preventDefault();
+    if (a.target === '_blank') openInNewWindow(p);
+    else go('GET', p);
+  });
+
+  app.addEventListener('submit', (e) => {
+    // 行內 onsubmit 回傳 false（例如兩段式確認的第一下）就尊重它，不送。
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    submitForm(e.target, e.submitter);
+  });
+
+  // onchange="this.form.submit()" 這種寫法不會觸發 submit 事件，瀏覽器會直接送到 github.io。
+  // 外殼頁裡的表單一律改走自己的送出流程。
+  const nativeSubmit = HTMLFormElement.prototype.submit;
+  HTMLFormElement.prototype.submit = function () {
+    if (app.contains(this)) { submitForm(this, null); return undefined; }
+    return nativeSubmit.call(this);
+  };
+
+  window.addEventListener('popstate', () => go('GET', readHash(), null, null, { replace: true }));
+
+  function start() { go('GET', readHash(), null, null, { replace: true }); }
+
+  return { start, toast };
+})();
+
+Shell.start();
+
+</script>
+</body>
+</html>
