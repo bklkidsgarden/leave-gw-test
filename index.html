@@ -606,6 +606,41 @@ const Downloads = (() => {
   return { offer, close };
 })();
 
+/** 頁面的短暫快取：剛看過、或背景先抓好的頁面，90 秒內再開就直接顯示，不必再等 Google 轉送一趟（每趟 2～3 秒）。
+ *  任何送出（POST）都會整個清掉，資料改過之後一定重新抓；含 Face ID 選項（data-options）的頁面每次都要新的，不放進來。 */
+const PageCache = (() => {
+  const TTL = 90 * 1000;
+  const map = new Map();       // path → {at, gen, p}
+  const never = new Set();     // 抓過發現不能快取的頁面（例如打卡頁），背景就不再先抓，免得白跑一趟
+  let gen = 0;
+  const td = new TextDecoder();
+  function cacheable(r) {
+    const ctype = r.headers['content-type'] || '';
+    return r.status === 200 && ctype.startsWith('text/html') && !r.headers['content-disposition']
+      && !td.decode(r.body).includes('data-options=');
+  }
+  return {
+    get(path) {
+      const e = map.get(path);
+      if (!e || e.gen !== gen || Date.now() - e.at > TTL) return null;
+      return e.p;
+    },
+    put(path, p) {
+      const e = { at: Date.now(), gen, p };
+      map.set(path, e);
+      p.then((r) => {
+        if (cacheable(r)) return;
+        never.add(path.split('?')[0]);
+        if (map.get(path) === e) map.delete(path);
+      },
+             () => { if (map.get(path) === e) map.delete(path); });
+    },
+    has(path) { return !!this.get(path); },
+    worthPrefetching(path) { return !never.has(path.split('?')[0]) && !this.has(path); },
+    clear() { gen += 1; map.clear(); },
+  };
+})();
+
 const Shell = (() => {
   const app = document.getElementById('app');
   const busy = document.getElementById('busy');
@@ -673,11 +708,51 @@ const Shell = (() => {
     return URL.createObjectURL(new Blob([r.body], { type: r.headers['content-type'] || 'application/octet-stream' }));
   }
 
+  /** GET 先看快取（含背景正在抓的那一份，不重複送）；POST 一律清快取。 */
+  async function fetchPage(method, path, body, contentType) {
+    if (method !== 'GET') {
+      PageCache.clear();
+      try { return await request(method, path, body, contentType); } finally { PageCache.clear(); }
+    }
+    const hit = PageCache.get(path);
+    if (hit) {
+      try { return await hit; } catch (e) { /* 背景那份失敗了，下面重抓 */ }
+    }
+    const p = request('GET', path);
+    PageCache.put(path, p);
+    return p;
+  }
+
+  // ── 背景先抓下方分頁：開完一頁、使用者還在看的時候做。Google 正慢（超過 5 秒）就停，不加重負擔、不多耗額度。
+  let prefetchTimer = null;
+  let navigating = false;
+  function schedulePrefetch() {
+    clearTimeout(prefetchTimer);
+    prefetchTimer = setTimeout(async () => {
+      const paths = [];
+      for (const a of app.querySelectorAll('.tabbar a[href]')) {
+        const p = resolve(a.getAttribute('href'));
+        if (p && p !== current && !paths.includes(p) && PageCache.worthPrefetching(p)) paths.push(p);
+      }
+      for (const p of paths.slice(0, 6)) {
+        if (navigating) return;
+        const t0 = Date.now();
+        const pr = request('GET', p);
+        PageCache.put(p, pr);
+        try { await pr; } catch (e) { return; }
+        if (Date.now() - t0 > 5000) return;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }, 800);
+  }
+
   async function go(method, path, body, contentType, opts = {}) {
     const seq = ++navSeq;
     busy.hidden = false;
+    navigating = true;
+    clearTimeout(prefetchTimer);
     try {
-      let r = await request(method, path, body, contentType);
+      let r = await fetchPage(method, path, body, contentType);
       // 系統自己的轉址閘道已經直接跟過去了（省一趟 Google 來回），這裡改用最後到達的路徑
       if (r.headers['x-gw-path']) path = r.headers['x-gw-path'];
       for (let hops = 0; r.status >= 300 && r.status < 400 && r.headers.location; hops++) {
@@ -693,6 +768,8 @@ const Shell = (() => {
       if (ctype.startsWith('text/html')) {
         await render(td.decode(r.body), path);
         setHash(path, !opts.replace && path !== readHash());
+        navigating = false;
+        schedulePrefetch();
         return;
       }
       if (r.status >= 400) throw new Error(td.decode(r.body).slice(0, 200) || 'HTTP ' + r.status);
@@ -700,7 +777,7 @@ const Shell = (() => {
     } catch (e) {
       if (seq === navSeq) showError(e, method === 'GET' ? () => go('GET', path, null, null, opts) : null);
     } finally {
-      if (seq === navSeq) busy.hidden = true;
+      if (seq === navSeq) { busy.hidden = true; navigating = false; }
     }
   }
 
