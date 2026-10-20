@@ -158,7 +158,13 @@ const Gw = (() => {
       clearTimeout(timer);
     }
     if (!r.ok) throw friendly('apps-script', '轉送服務暫時有問題（HTTP ' + r.status + '），請稍後再試');
-    const d = await r.json();
+    let d;
+    try {
+      d = await r.json();
+    } catch (e) {
+      // Google 偶爾會回一個空的或不完整的回應（實測過），不是我們這邊的錯，但要說得出來。
+      throw friendly('apps-script', 'Google 轉送服務這次的回應不完整，請再試一次');
+    }
     if (!d.ok) throw friendly('apps-script', '轉送服務拒絕了這次呼叫');
     return d.result;
   }
@@ -181,16 +187,31 @@ const Gw = (() => {
       s.key, frame(meta, body || new Uint8Array(0))));
     const env = JSON.stringify({ v: 1, epk: s.epk, iv: b64.enc(iv), ct: b64.enc(ct) });
 
-    let relayed;
-    try {
-      relayed = JSON.parse(await run('relay', env));
-    } catch (e) {
-      // 送出資料時逾時：Google 那端可能其實已經處理完了，直接重送會變成重複送出。
+    // 安全重送：Google 把結果交回來那一段偶爾會掉（空白、404、逾時），但請求可能已經到過主機了。
+    // 拿「同一份」加密請求再送：主機認得同一個請求編號，會直接交出上次的結果、不會再執行一次，
+    // 所以送出假單這類動作重送也不會重複。主機還在處理第一次時回 409，等一下再來拿。
+    let relayed = null;
+    let lastErr = null;
+    let slowTries = 0;
+    for (let attempt = 0; attempt < 4 && !relayed; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, attempt === 1 ? 1500 : 4000));
+      try {
+        const got = JSON.parse(await run('relay', env));
+        if (got.status === 409) { lastErr = friendly('slow', '主機還在處理'); continue; }
+        relayed = got;
+      } catch (e) {
+        lastErr = e;
+        if (e.kind === 'slow' && ++slowTries > 1) break;     // 逾時最多再等一輪，不讓人乾等好幾分鐘
+        if (!['apps-script', 'network', 'slow'].includes(e.kind)) break;
+      }
+    }
+    if (!relayed) {
+      const e = lastErr || friendly('apps-script', 'Google 轉送服務沒有回應');
       if (e.kind === 'slow' && meta.method !== 'GET') {
+        // 送出資料時一直等不到結果：主機那邊可能其實已經處理完了
         throw friendly('slow', e.message + '。這筆資料可能已經送出了，請先到「我的假單」確認，不要直接再送一次');
       }
-      if (e.kind === 'slow') throw friendly('slow', e.message + '，請再試一次');
-      throw e;
+      throw friendly(e.kind || 'apps-script', e.message + (e.kind === 'slow' ? '，請再試一次' : ''));
     }
     if (relayed.status === 429) throw friendly('busy', '系統忙碌中，請過一分鐘再試');
     if (relayed.status === 0) throw friendly('offline', '主機目前連不上（可能正在重新啟動），請稍後再試');
