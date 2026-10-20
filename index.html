@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<style id="appcss" data-href="/static/style.css?v=f2ff0ba8bf40">
+<style id="appcss" data-href="/static/style.css?v=a29d540ee079">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
@@ -271,6 +271,37 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 
 /* hidden 屬性一律藏起來（.actions 等有 display 設定的元素也一樣） */
 [hidden]{display:none!important}
+
+/* ── 巡園 ── */
+.seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.seg.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);
+  border-radius:10px;background:#fff;font-size:15px;font-weight:500;cursor:pointer;margin:0}
+.seg input:checked+label{border-color:#166534;background:#dcfce7;color:#166534}
+.seg input.bad:checked+label{border-color:#991b1b;background:#fee2e2;color:#991b1b}
+.seg input.pick:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
+.seg input:focus-visible+label{outline:2px solid #1d4ed8;outline-offset:2px}
+.pitem{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:10px}
+.pitem.bad{border-color:#fca5a5}
+.pissue{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:10px}
+.parea{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;min-height:56px;
+  box-sizing:border-box;border:1px solid var(--line);border-radius:14px;background:#fff;color:inherit;text-decoration:none}
+.pbig{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#2563eb;color:#fff;
+  border-radius:18px;padding:18px 20px;text-decoration:none;border:0;width:100%;font:inherit;cursor:pointer}
+.ptags{display:flex;flex-wrap:wrap;gap:6px}
+.ptags input{position:absolute;opacity:0;pointer-events:none}
+.ptags label{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:1px solid var(--line);
+  border-radius:999px;background:#fff;font-size:14px;cursor:pointer;margin:0}
+.ptags input:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
+.pphoto{width:100%;max-height:260px;object-fit:cover;border-radius:12px;background:#e5e7eb}
+.ptimeline{list-style:none;margin:0;padding:0}
+.ptimeline li{position:relative;padding:0 0 14px 22px;border-left:2px solid var(--line);margin-left:6px}
+.ptimeline li:last-child{border-left-color:transparent}
+.ptimeline li::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:999px;background:#9ca3af}
+.ptimeline li.found::before{background:#991b1b}.ptimeline li.reported::before{background:#1d4ed8}
+.ptimeline li.closed::before{background:#166534}.ptimeline li.returned::before{background:#b45309}
+
 
 </style>
 <style>
