@@ -407,6 +407,9 @@ const Shell = (() => {
     // 頁面最外層的 const／let（例如請假頁的 const mode）第二次進同一頁才不會「已宣告」報錯；
     // function 宣告照舊變成全域，行內 onsubmit="return twoStep(…)" 叫得到。
     for (const old of app.querySelectorAll('script')) {
+      // 只重跑真的 JavaScript；type="application/json" 這類資料區塊原樣留著，不能當程式執行。
+      const type = (old.getAttribute('type') || '').trim().toLowerCase();
+      if (type && !['text/javascript', 'application/javascript', 'module'].includes(type)) continue;
       const s = document.createElement('script');
       s.textContent = '{\n' + old.textContent + '\n}';
       old.replaceWith(s);
@@ -553,7 +556,16 @@ const Shell = (() => {
 
   window.addEventListener('popstate', () => go('GET', readHash(), null, null, { replace: true }));
 
-  function start() { go('GET', readHash(), null, null, { replace: true }); }
+  function start() {
+    // 從 LINE 點開時改用手機的預設瀏覽器（Safari／Chrome）：LINE 內建瀏覽器很可能不支援 Face ID／指紋，
+    // 而且每個 App 的內建瀏覽器登入狀態各自獨立，換個地方開就要重新登入。
+    // openExternalBrowser=1 是 LINE 認得的參數，帶著它的網址會交給外部瀏覽器開啟。
+    if (/ Line\//i.test(navigator.userAgent) && !/[?&]openExternalBrowser=1/.test(location.search)) {
+      location.replace(location.pathname + '?openExternalBrowser=1' + location.hash);
+      return;
+    }
+    go('GET', readHash(), null, null, { replace: true });
+  }
 
   return { start, toast };
 })();
