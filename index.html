@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<style id="appcss" data-href="/static/style.css?v=8a71f5266282">
+<style id="appcss" data-href="/static/style.css?v=ef5e4387f17d">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
@@ -288,10 +288,12 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
   border-radius:10px;background:#fff;font-size:15px;font-weight:500;cursor:pointer;margin:0}
 .seg input:checked+label{border-color:#166534;background:#dcfce7;color:#166534}
 .seg input.bad:checked+label{border-color:#991b1b;background:#fee2e2;color:#991b1b}
+.seg input.fair:checked+label{border-color:#b45309;background:#fef3c7;color:#92400e}
 .seg input.pick:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
 .seg input:focus-visible+label{outline:2px solid #1d4ed8;outline-offset:2px}
 .pitem{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:10px}
 .pitem.bad{border-color:#fca5a5}
+.pitem.fair{border-color:#fcd34d}
 .pissue{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:10px}
 .parea{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;min-height:56px;
   box-sizing:border-box;border:1px solid var(--line);border-radius:14px;background:#fff;color:inherit;text-decoration:none}
@@ -303,6 +305,7 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
   border-radius:999px;background:#fff;font-size:14px;cursor:pointer;margin:0}
 .ptags input:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
 .pphoto{width:100%;max-height:260px;object-fit:cover;border-radius:12px;background:#e5e7eb}
+.pblock{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin:0 0 16px}
 .cphotos{position:relative;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
 .pgrid:empty{display:none}
@@ -359,7 +362,7 @@ function showFatal(t) {
 }
 </script>
 </head>
-<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://script.google.com/macros/s/AKfycbykNwEIsFtSzXOyY0nyaHGOuxsd1EMAKh3thsO3YnPIhcE2oj8sZJzEczghVcwrAzsI9g/exec">
+<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://script.google.com/macros/s/AKfycbykNwEIsFtSzXOyY0nyaHGOuxsd1EMAKh3thsO3YnPIhcE2oj8sZJzEczghVcwrAzsI9g/exec" data-home="/" data-login="/login" data-session="leave_session">
 <pre id="fatal" hidden></pre>
 <div id="busy" hidden>連線中…</div>
 <div id="sheet" hidden></div>
@@ -666,16 +669,29 @@ const Shell = (() => {
   const appcss = document.getElementById('appcss');
   const ORIGIN = 'https://app.invalid';
   const td = new TextDecoder();
-  let current = '/';
-  // 系統的樣式表：外殼頁內建一份（build.py），系統那邊改過的話抓回來的新版存在這台手機，下次開頁直接用。
-  const CSS_KEY = 'gw.appcss';
+  // 開頁先到哪一頁、沒有登入票時直接要哪一頁：請假測試版是 / 與 /login；校園版是入口首頁與帳號中心的登入頁（build.py --campus）
+  const HOME = document.body.dataset.home || '/';
+  const LOGIN = document.body.dataset.login || '/login';
+  const SESSION = document.body.dataset.session || 'leave_session';
+  let current = HOME;
+  // 系統的樣式表：外殼頁內建一份（build.py），其他抓過的記在這台手機（網址帶內容雜湊，改版就是新網址）。
+  // 校園版每一艙的樣式表不同（入口首頁、請假系統…），記住抓過的，來回切換才不必每次多跑一趟 Google。
+  const CSS_KEY = 'gw.appcss.v2';
+  const CSS_KEEP = 4;
   const EMBED_HREF = appcss.dataset.href || '';
-  const EMBED_CSS = appcss.textContent;
   let cssHref = EMBED_HREF;
-  try {
-    const saved = JSON.parse(localStorage.getItem(CSS_KEY) || 'null');
-    if (saved && saved.href && saved.href !== cssHref) { appcss.textContent = saved.css; cssHref = saved.href; }
-  } catch (e) { /* 用內建的 */ }
+  let cssSeen = {};               // 網址 → 樣式表內容
+  try { cssSeen = JSON.parse(localStorage.getItem(CSS_KEY) || '{}') || {}; } catch (e) { cssSeen = {}; }
+  cssSeen[EMBED_HREF] = appcss.textContent;
+  function rememberCss(href, css) {
+    delete cssSeen[href];
+    cssSeen[href] = css;
+    const hrefs = Object.keys(cssSeen).filter((h) => h !== EMBED_HREF);
+    for (const h of hrefs.slice(0, Math.max(0, hrefs.length - CSS_KEEP))) delete cssSeen[h];
+    const saved = Object.assign({}, cssSeen);
+    delete saved[EMBED_HREF];
+    try { localStorage.setItem(CSS_KEY, JSON.stringify(saved)); } catch (e) { /* 存不了就只記在這一頁 */ }
+  }
   let pageBlobs = [];
   let navSeq = 0;
 
@@ -700,9 +716,9 @@ const Shell = (() => {
 
   function readHash() {
     const m = /(?:^|&)p=([^&]+)/.exec(location.hash.replace(/^#/, ''));
-    let p = '/';
-    if (m) { try { p = decodeURIComponent(m[1]); } catch (e) { p = '/'; } }
-    return p.startsWith('/') && !p.startsWith('//') ? p : '/';
+    let p = HOME;
+    if (m) { try { p = decodeURIComponent(m[1]); } catch (e) { p = HOME; } }
+    return p.startsWith('/') && !p.startsWith('//') ? p : HOME;
   }
 
   function setHash(path, push) {
@@ -803,19 +819,21 @@ const Shell = (() => {
   async function render(html, path) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
-    // 樣式表：網址（含版本號）變了才重抓。
+    // 樣式表：網址（含內容雜湊）變了才換；內建的或抓過的直接用，沒看過的才去抓。
     const link = doc.querySelector('link[rel="stylesheet"][href]');
     const href = link && resolve(link.getAttribute('href'));
-    if (href && href === EMBED_HREF && href !== cssHref) {
-      appcss.textContent = EMBED_CSS; cssHref = href;          // 內建的就是這一版，不用抓
-    } else if (href && href !== cssHref) {
-      try {
-        const r = await request('GET', href);
-        if (r.status === 200) {
-          appcss.textContent = td.decode(r.body); cssHref = href;
-          try { localStorage.setItem(CSS_KEY, JSON.stringify({ href, css: appcss.textContent })); } catch (e) { /* 無妨 */ }
-        }
-      } catch (e) { /* 沒樣式也能用 */ }
+    if (href && href !== cssHref) {
+      if (cssSeen[href] !== undefined) {
+        appcss.textContent = cssSeen[href]; cssHref = href;
+      } else {
+        try {
+          const r = await request('GET', href);
+          if (r.status === 200) {
+            appcss.textContent = td.decode(r.body); cssHref = href;
+            rememberCss(href, appcss.textContent);
+          }
+        } catch (e) { /* 沒樣式也能用 */ }
+      }
     }
 
     // 圖片先在還沒放進畫面的文件上改掉 src，免得瀏覽器拿相對路徑去打 github.io。
@@ -1001,7 +1019,7 @@ const Shell = (() => {
     }
     // 沒有登入票又是從首頁開：直接要登入頁，不用先到首頁再被轉過去
     let first = readHash();
-    if (first === '/' && !Jar.has('leave_session')) first = '/login';
+    if (first === HOME && !Jar.has(SESSION)) first = LOGIN;
     go('GET', first, null, null, { replace: true });
   }
 
