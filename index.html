@@ -8,12 +8,12 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="請假測試">
-<title>柏克來請假系統（測試環境）</title>
+<meta name="apple-mobile-web-app-title" content="智慧校園測試">
+<title>柏克來智慧校園系統（測試環境）</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<style id="appcss" data-href="/static/style.css?v=a29d540ee079">
+<style id="appcss" data-href="/static/style.css?v=8819f6227089">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
@@ -176,6 +176,14 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 .subtabs a{padding:8px 13px;font-size:14px;color:var(--muted);white-space:nowrap;
   border-bottom:2px solid transparent}
 .subtabs a.on{color:var(--brand);font-weight:600;border-color:var(--brand)}
+
+/* 同一個分頁裡的幾個功能（例如「請假」裡的我的假單／我要請假／簽核），用切換鈕換 */
+.modnav{display:flex;gap:4px;margin:0 0 14px;padding:4px;background:#eef2f7;border-radius:12px}
+.modnav a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
+  border-radius:9px;font-size:15px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.modnav a.on{background:#fff;color:var(--brand);font-weight:600;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.modnav .dot{min-width:18px;height:18px;border-radius:999px;background:var(--risk);color:#fff;
+  font-size:11px;line-height:18px;text-align:center;padding:0 5px;font-weight:600}
 
 .foot{text-align:center;color:var(--muted);font-size:12px;padding:18px 14px 26px}
 .empty{text-align:center;color:var(--muted);padding:28px 10px;font-size:14px}
@@ -723,14 +731,14 @@ const Shell = (() => {
     return p;
   }
 
-  // ── 背景先抓下方分頁：開完一頁、使用者還在看的時候做。Google 正慢（超過 5 秒）就停，不加重負擔、不多耗額度。
+  // ── 背景先抓下方分頁（和分頁裡的切換鈕）：開完一頁、使用者還在看的時候做。Google 正慢（超過 5 秒）就停，不加重負擔、不多耗額度。
   let prefetchTimer = null;
   let navigating = false;
   function schedulePrefetch() {
     clearTimeout(prefetchTimer);
     prefetchTimer = setTimeout(async () => {
       const paths = [];
-      for (const a of app.querySelectorAll('.tabbar a[href]')) {
+      for (const a of app.querySelectorAll('.tabbar a[href], .modnav a[href]')) {
         const p = resolve(a.getAttribute('href'));
         if (p && p !== current && !paths.includes(p) && PageCache.worthPrefetching(p)) paths.push(p);
       }

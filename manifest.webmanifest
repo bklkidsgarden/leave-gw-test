@@ -1,6 +1,6 @@
 {
-  "name": "柏克來請假系統（測試環境）",
-  "short_name": "請假測試",
+  "name": "柏克來智慧校園系統（測試環境）",
+  "short_name": "智慧校園測試",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
