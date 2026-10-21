@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<style id="appcss" data-href="/static/style.css?v=8819f6227089">
+<style id="appcss" data-href="/static/style.css?v=8a71f5266282">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
@@ -303,6 +303,17 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
   border-radius:999px;background:#fff;font-size:14px;cursor:pointer;margin:0}
 .ptags input:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
 .pphoto{width:100%;max-height:260px;object-fit:cover;border-radius:12px;background:#e5e7eb}
+.cphotos{position:relative;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
+.pgrid:empty{display:none}
+.pgrid figure{margin:0;display:flex;flex-direction:column;gap:4px}
+.pgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#e5e7eb;cursor:zoom-in}
+.pgrid figure.big{grid-column:1/-1}
+.pgrid figure.big img{aspect-ratio:auto;max-height:none;object-fit:contain;cursor:zoom-out}
+.pgrid .pdrop{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin:0}
+.pgrid .pdrop input{width:18px;height:18px}
+.pgrid figure:has(.pdrop input:checked) img{opacity:.35}
+.pfile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .ptimeline{list-style:none;margin:0;padding:0}
 .ptimeline li{position:relative;padding:0 0 14px 22px;border-left:2px solid var(--line);margin-left:6px}
 .ptimeline li:last-child{border-left-color:transparent}
@@ -854,15 +865,23 @@ const Shell = (() => {
 
   /** 證明文件在手機上先縮小再傳：5MB 原圖經 Google 要 10～20 秒（Phase 0 實測），縮成長邊 1600px 只要一兩秒。 */
   async function shrinkImages(fd) {
-    for (const [name, v] of Array.from(fd.entries())) {
+    // 同一個欄位可能有好幾張（例如巡園的補充照片），所以整份重排，不能用 fd.set（會只剩一張）
+    const entries = Array.from(fd.entries());
+    let changed = false;
+    for (let i = 0; i < entries.length; i++) {
+      const v = entries[i][1];
       if (!(v instanceof File) || v.size <= 1024 * 1024 || !/^image\/(jpeg|png|webp|heic|heif)$/i.test(v.type)) continue;
       try {
         const small = await shrink(v, 1600);
         if (small && small.size < v.size) {
-          fd.set(name, new File([small], v.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+          entries[i] = [entries[i][0], new File([small], v.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })];
+          changed = true;
         }
       } catch (e) { /* 縮不了就照原檔送 */ }
     }
+    if (!changed) return;
+    for (const name of new Set(entries.map((e) => e[0]))) fd.delete(name);
+    for (const [name, v] of entries) fd.append(name, v);
   }
 
   async function shrink(file, max) {
