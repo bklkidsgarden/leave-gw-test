@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<style id="appcss" data-href="/static/style.css?v=d93e7e68c792">
+<style id="appcss" data-href="/static/style.css?v=b5cda4dcf37e">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
@@ -324,6 +324,35 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 .ptimeline li.found::before{background:#991b1b}.ptimeline li.reported::before{background:#1d4ed8}
 .ptimeline li.closed::before{background:#166534}.ptimeline li.returned::before{background:#b45309}
 
+
+/* 教學日誌：觀察量表（點選式） */
+.obsstep{font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 6px}
+.obsbox .obsstep:first-child{margin-top:0}
+.obsstep .hint{font-weight:400}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px}
+.chips.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.chips.one{grid-template-columns:1fr;margin-top:6px}
+.chip{position:relative;min-height:40px;padding:6px 2px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  color:var(--ink);font:inherit;font-size:14px;line-height:1.25;cursor:pointer}
+.chips.one .chip{text-align:left;padding:8px 12px}
+.chip.on{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a;font-weight:700}
+.chip.lv1.on{border-color:#991b1b;background:#fee2e2;color:#991b1b}
+.chip.lv2.on{border-color:#b45309;background:#fef3c7;color:#92400e}
+.chip.lv3.on{border-color:#166534;background:#dcfce7;color:#166534}
+.chip .n{position:absolute;top:1px;right:5px;font-style:normal;font-size:11px;font-weight:700;color:#166534}
+.obslist{margin-top:10px}
+.obsrow{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
+.obsrow.dropped>div{opacity:.4;text-decoration:line-through}
+.obsdrop{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin:0;white-space:nowrap;font-size:14px;color:var(--muted)}
+.obsdrop input{width:auto;min-height:0;margin:0}
+.lvtag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px}
+.lvtag.lv1{background:#fee2e2;color:#991b1b}
+.lvtag.lv2{background:#fef3c7;color:#92400e}
+.lvtag.lv3{background:#dcfce7;color:#166534}
+
+/* 黏在底部的儲存列：手機上要停在分頁列上面，不然會被蓋住 */
+.stickybar{position:sticky;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:10;background:var(--bg);padding:10px 0}
+@media (min-width:720px){ .stickybar{bottom:0} }
 
 </style>
 <style>
