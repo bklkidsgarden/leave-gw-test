@@ -3,16 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src blob: mediastream:; manifest-src &#x27;self&#x27;; connect-src https://script.google.com https://script.googleusercontent.com; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src blob: mediastream:; manifest-src &#x27;self&#x27;; worker-src &#x27;self&#x27;; connect-src https://script.google.com https://script.googleusercontent.com; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#2563eb">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="智慧校園測試">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>柏克來智慧校園系統（測試環境）</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style id="appcss" data-href="/static/style.css?v=b9d825a035d2">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
@@ -384,14 +386,16 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 /* 外殼頁自己的元件。系統頁面的樣式另外抓（#appcss），這裡不碰系統的版面。 */
 #busy { position: fixed; top: 8px; right: 8px; z-index: 50; background: #111827; color: #fff;
   padding: 4px 10px; border-radius: 999px; font-size: 13px; }
-#sheet { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 60;
+#sheet, .shell-sheet { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 60;
   background: #fff; border: 1px solid #d1d5db; border-radius: 12px; padding: 10px 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .18); font-size: 15px; color: #111827; }
+#install { z-index: 55; }
 .sheet-title { margin: 0 0 8px; font-weight: 700; word-break: break-all; }
+.sheet-text { margin: 0 0 10px; font-size: 14px; line-height: 1.5; color: #374151; }
 .sheet-row { display: flex; flex-wrap: wrap; gap: 8px; }
-#sheet button { font-size: 15px; padding: 8px 14px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #111827; }
-#sheet button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
-#sheet button.ghost { border-color: transparent; color: #6b7280; }
+#sheet button, .shell-sheet button { font-size: 15px; padding: 8px 14px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #111827; }
+#sheet button.primary, .shell-sheet button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+#sheet button.ghost, .shell-sheet button.ghost { border-color: transparent; color: #6b7280; }
 #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 70; background: #111827;
   color: #fff; padding: 8px 14px; border-radius: 999px; font-size: 14px; }
 .shell-note { padding: 24px 16px; color: #6b7280; text-align: center; }
@@ -568,6 +572,7 @@ const Gw = (() => {
       } catch (e) {
         lastErr = e;
         if (e.kind === 'slow' && ++slowTries > 1) break;     // 逾時最多再等一輪，不讓人乾等好幾分鐘
+        if (e.kind === 'network' && navigator.onLine === false) break;   // 手機明確說沒網路：重送也沒用，直接告訴他
         if (!['apps-script', 'network', 'slow'].includes(e.kind)) break;
       }
     }
@@ -605,11 +610,13 @@ const Gw = (() => {
  * # 後面的部分瀏覽器不會送給任何伺服器。
  */
 
-/** 代管系統發的 Cookie。存得進 localStorage 就存（關掉瀏覽器還在），存不進就只放記憶體。 */
+/** 代管系統發的 Cookie。存得進 localStorage 就存（關掉瀏覽器還在），存不進就只放記憶體。
+ *  同一個 github.io 底下的外殼頁（請假測試版、校園版⋯）共用 localStorage，鍵名加上自己的路徑才不會互相蓋掉。
+ *  舊鍵名 gw.jar 只在新鍵名還沒有東西時讀一次，原本的登入狀態搬過來，不必重新登入。 */
 const Jar = (() => {
-  const KEY = 'gw.jar';
+  const KEY = 'gw.jar:' + location.pathname.replace(/[^/]*$/, '');
   let mem = {};
-  try { mem = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { /* 存不了就只放記憶體 */ }
+  try { mem = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('gw.jar') || '{}'); } catch (e) { /* 存不了就只放記憶體 */ }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 同上 */ } };
   return {
     has(name) {
@@ -680,6 +687,80 @@ const Downloads = (() => {
   }
 
   return { offer, close };
+})();
+
+/** 「加入主畫面」的提示。從主畫面打開是全螢幕、登入記得比較久，也是之後收推播的前提（PWA施作規劃書 P1）。
+ *  Android Chrome 有現成的安裝視窗可以叫（beforeinstallprompt）；iPhone 沒有，只能教他按分享鈕。
+ *  已經是從主畫面打開的、電腦、或按過「不用了」（30 天內）就不顯示。 */
+const Install = (() => {
+  const KEY = 'gw.install.later';
+  const QUIET_MS = 30 * 24 * 3600 * 1000;
+  const name = (document.querySelector('meta[name="apple-mobile-web-app-title"]') || {}).content || '這個系統';
+  let deferred = null;
+  let box = null;
+
+  const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const ios = () => /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  function quiet() {
+    try { return Date.now() - Number(localStorage.getItem(KEY) || 0) < QUIET_MS; } catch (e) { return false; }
+  }
+
+  function close(later) {
+    if (later) { try { localStorage.setItem(KEY, String(Date.now())); } catch (e) { /* 記不住就下次再問 */ } }
+    if (box) { box.remove(); box = null; }
+  }
+
+  function show(text, actions) {
+    close(false);
+    box = document.createElement('div');
+    box.id = 'install';
+    box.className = 'shell-sheet';
+    const title = document.createElement('p');
+    title.className = 'sheet-title';
+    title.textContent = '📲 把「' + name + '」加到主畫面';
+    const body = document.createElement('p');
+    body.className = 'sheet-text';
+    body.textContent = text;
+    const row = document.createElement('div');
+    row.className = 'sheet-row';
+    for (const [label, fn, cls] of actions) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      if (cls) b.className = cls;
+      b.addEventListener('click', fn);
+      row.append(b);
+    }
+    box.append(title, body, row);
+    document.body.append(box);
+  }
+
+  function start() {
+    if (standalone() || quiet() || !matchMedia('(pointer: coarse)').matches) return;   // 電腦不提示
+    if (ios()) {
+      // iPhone 的主畫面 App 和 Safari 分開記登入狀態，所以趁還沒登入就先提醒
+      setTimeout(() => show('點瀏覽器的「分享」按鈕（方框加向上箭頭），往下找「加入主畫面」。之後從主畫面打開，像 App 一樣全螢幕。'
+        + '第一次從主畫面打開要再登入一次。', [['知道了', () => close(true), 'primary']]), 1500);
+      return;
+    }
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      show('裝好之後從主畫面打開，像 App 一樣全螢幕。', [
+        ['安裝', async () => {
+          close(false);
+          deferred.prompt();
+          const choice = await deferred.userChoice.catch(() => null);
+          deferred = null;
+          if (!choice || choice.outcome !== 'accepted') close(true);
+        }, 'primary'],
+        ['不用了', () => close(true), 'ghost']]);
+    });
+    window.addEventListener('appinstalled', () => close(false));
+  }
+
+  return { start };
 })();
 
 /** 頁面的短暫快取：剛看過、或背景先抓好的頁面，90 秒內再開就直接顯示，不必再等 Google 轉送一趟（每趟 2～3 秒）。
@@ -1012,6 +1093,12 @@ const Shell = (() => {
     const p = document.createElement('p');
     p.textContent = '⚠️ ' + (e && e.message ? e.message : String(e));
     box.append(p);
+    if (e && e.kind === 'network') {
+      // 斷網時外殼頁還打得開（sw.js），但系統連不上：照智慧校園規劃書 §3.5 改用紙本
+      const hint = document.createElement('p');
+      hint.textContent = '連不上的這段時間，點名、接送請先記在紙本，恢復後補登。';
+      box.append(hint);
+    }
     if (retry) {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = '再試一次';
@@ -1075,6 +1162,9 @@ const Shell = (() => {
     let first = readHash();
     if (first === HOME && !Jar.has(SESSION)) first = LOGIN;
     go('GET', first, null, null, { replace: true });
+    // 斷網時也打得開外殼頁；註冊不成（舊瀏覽器、私密瀏覽）就照舊每次從網路抓，不影響使用
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    Install.start();
   }
 
   return { start, toast };

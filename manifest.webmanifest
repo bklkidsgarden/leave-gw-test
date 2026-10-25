@@ -1,6 +1,8 @@
 {
   "name": "柏克來智慧校園系統（測試環境）",
   "short_name": "智慧校園測試",
+  "description": "柏克來幼兒園同仁用的請假、打卡與園務系統（測試環境）",
+  "lang": "zh-Hant",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -16,6 +18,12 @@
       "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
