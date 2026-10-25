@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<style id="appcss" data-href="/static/style.css?v=b5cda4dcf37e">
+<style id="appcss" data-href="/static/style.css?v=b9d825a035d2">
 /* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
@@ -353,6 +353,31 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 /* 黏在底部的儲存列：手機上要停在分頁列上面，不然會被蓋住 */
 .stickybar{position:sticky;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:10;background:var(--bg);padding:10px 0}
 @media (min-width:720px){ .stickybar{bottom:0} }
+
+/* 點名 */
+.chips.five{grid-template-columns:repeat(4,minmax(0,1fr))}
+.chip[data-st="遲到"],.chip[data-st="遲到"].on{border-color:#b45309;background:#fef3c7;color:#92400e}
+.chip[data-st="病假"],.chip[data-st="病假"].on{border-color:#991b1b;background:#fee2e2;color:#991b1b}
+.chip[data-st="事假"],.chip[data-st="事假"].on{border-color:#4338ca;background:#e0e7ff;color:#3730a3}
+.chip[data-st="未到"],.chip[data-st="未到"].on{border-color:#6b7280;background:#e5e7eb;color:#374151}
+#brush .chip{opacity:.55}
+#brush .chip.on{opacity:1;font-weight:700;box-shadow:0 0 0 2px var(--bg),0 0 0 4px currentColor}
+.rollkids .chip[data-st="到"] .n{display:none}
+.rollkids .chip .n{position:static;display:block;font-size:11px;color:inherit}
+.rolltally{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;font-size:16px;border-bottom:1px solid var(--line)}
+.rolltally b{font-size:22px}
+.rolltally span{margin-left:10px;font-size:14px;color:var(--muted)}
+.rnote{align-items:center}
+.rnote .rst{font-size:12px;color:var(--muted)}
+.rollhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rollnum b{font-size:20px}
+.bignum{font-size:52px;font-weight:800;line-height:1.1;margin:4px 0}
+.stepper{display:flex;gap:8px;align-items:center}
+.stepper input{text-align:center;font-size:22px;font-weight:700;flex:1;min-width:0}
+.stepper .btn{min-width:56px;font-size:22px}
+.pickchip{display:flex;align-items:center;justify-content:center;margin:0}
+.pickchip input{display:none}
+.pickchip:has(input:checked){border-color:#991b1b;background:#fee2e2;color:#991b1b;font-weight:700}
 
 </style>
 <style>
