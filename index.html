@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src blob: mediastream:; manifest-src &#x27;self&#x27;; worker-src &#x27;self&#x27;; connect-src https://script.google.com https://script.googleusercontent.com; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;">
+<meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src blob: mediastream:; manifest-src &#x27;self&#x27;; worker-src &#x27;self&#x27;; connect-src https://bk-gw-relay-test.bklkidsgarden.workers.dev; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#2563eb">
@@ -420,7 +420,7 @@ function showFatal(t) {
 }
 </script>
 </head>
-<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://script.google.com/macros/s/AKfycbykNwEIsFtSzXOyY0nyaHGOuxsd1EMAKh3thsO3YnPIhcE2oj8sZJzEczghVcwrAzsI9g/exec" data-home="/" data-login="/login" data-session="leave_session">
+<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://bk-gw-relay-test.bklkidsgarden.workers.dev/" data-home="/" data-login="/login" data-session="leave_session">
 <pre id="fatal" hidden></pre>
 <div id="busy" hidden>連線中…</div>
 <div id="sheet" hidden></div>
@@ -430,9 +430,9 @@ function showFatal(t) {
  *
  * 每次開頁產生一把一次性的 ECDH P-256 金鑰，跟主機的公鑰（內建在頁面上）算出共用金鑰，
  * 經 HKDF-SHA256 變成 AES-256-GCM 金鑰。請求與回應都用它加密，
- * Apps Script 只負責把密文轉送出去，看不到內容。
+ * 轉送服務（測試環境是 Cloudflare Worker，也可以是 Apps Script）只負責把密文轉送出去，看不到內容。
  *
- * 呼叫 Apps Script 一律 fetch + credentials: 'omit'：不帶 Google 的 Cookie，Google 把它當匿名訪客，
+ * 呼叫轉送服務一律 fetch + credentials: 'omit'：不帶 Google 的 Cookie，Google 把它當匿名訪客，
  * 瀏覽器登了幾個 Google 帳號都無關。Content-Type 用 text/plain 才不會觸發 CORS 預檢（Apps Script 不回應 OPTIONS）。
  */
 const Gw = (() => {
@@ -522,7 +522,7 @@ const Gw = (() => {
         signal: ctrl.signal,
       });
     } catch (e) {
-      if (e.name === 'AbortError') throw friendly('slow', 'Google 轉送服務這次回應太慢（超過 45 秒）');
+      if (e.name === 'AbortError') throw friendly('slow', '轉送服務這次回應太慢（超過 45 秒）');
       throw friendly('network', '網路連不上，請確認手機有網路後再試一次');
     } finally {
       clearTimeout(timer);
@@ -533,7 +533,7 @@ const Gw = (() => {
       d = await r.json();
     } catch (e) {
       // Google 偶爾會回一個空的或不完整的回應（實測過），不是我們這邊的錯，但要說得出來。
-      throw friendly('apps-script', 'Google 轉送服務這次的回應不完整，請再試一次');
+      throw friendly('apps-script', '轉送服務這次的回應不完整，請再試一次');
     }
     if (!d.ok) throw friendly('apps-script', '轉送服務拒絕了這次呼叫');
     return d.result;
@@ -577,7 +577,7 @@ const Gw = (() => {
       }
     }
     if (!relayed) {
-      const e = lastErr || friendly('apps-script', 'Google 轉送服務沒有回應');
+      const e = lastErr || friendly('apps-script', '轉送服務沒有回應');
       if (e.kind === 'slow' && meta.method !== 'GET') {
         // 送出資料時一直等不到結果：主機那邊可能其實已經處理完了
         throw friendly('slow', e.message + '。這筆資料可能已經送出了，請先到「我的假單」確認，不要直接再送一次');
