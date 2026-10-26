@@ -49,3 +49,28 @@ async function openPage(e) {
   if (r) return r;
   return (await caches.match(SCOPE)) || net;
 }
+
+// ── 推播（PWA施作規劃書 P4）：帳號中心從主機送來的通知。內容只有標題、一句話、要打開的頁面（#p= 後面那段）。
+// iPhone 規定每一則推播都要真的顯示出來，所以一律 showNotification，不做背景偷偷更新。
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || '智慧校園系統', {
+    body: d.body || '',
+    icon: 'icon-192.png',
+    badge: 'icon-192.png',
+    data: { path: typeof d.path === 'string' && d.path.startsWith('/') ? d.path : '' },
+  }));
+});
+
+// 點通知：已經開著就切過去、換到那一頁；沒開就開一個新的。
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const path = (e.notification.data && e.notification.data.path) || '';
+  const url = SCOPE + (path ? '#p=' + encodeURIComponent(path) : '');
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => c.url.startsWith(SCOPE));
+    if (open) return open.focus().then((c) => (c && path ? c.navigate(url) : c)).catch(() => self.clients.openWindow(url));
+    return self.clients.openWindow(url);
+  }));
+});
