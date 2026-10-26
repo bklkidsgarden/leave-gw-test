@@ -9,9 +9,9 @@
 <meta name="theme-color" content="#2563eb">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="智慧校園測試">
+<meta name="apple-mobile-web-app-title" content="主管行政測試">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>柏克來智慧校園系統（測試環境）</title>
+<title>柏克來智慧校園・主管及行政（測試環境）</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -909,6 +909,8 @@ const Shell = (() => {
       s.textContent = '{\n' + old.textContent + '\n}';
       old.replaceWith(s);
     }
+    // 頁面上「回入口首頁」的連結（左上角的標誌等）指的是主管及行政的首頁；老師、家長的 App 改回自己的首頁
+    if (HOME !== '/auth/home') app.querySelectorAll('a[href="/auth/home"]').forEach((a) => a.setAttribute('href', HOME));
     current = path;
     if (doc.title) document.title = doc.title;
     window.scrollTo(0, 0);

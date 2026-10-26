@@ -1,12 +1,12 @@
 {
-  "name": "柏克來智慧校園系統（測試環境）",
-  "short_name": "智慧校園測試",
-  "description": "柏克來幼兒園同仁用的請假、打卡與園務系統（測試環境）",
+  "name": "柏克來智慧校園・主管及行政（測試環境）",
+  "short_name": "主管行政測試",
+  "description": "柏克來幼兒園主管及行政用的智慧校園系統（測試環境）",
   "lang": "zh-Hant",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#FFFFFF",
   "theme_color": "#2563eb",
   "icons": [
     {
