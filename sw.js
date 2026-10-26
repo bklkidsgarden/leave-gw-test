@@ -4,9 +4,12 @@
  * build.py 產生 sw.js 時填入 VERSION（這次產生的檔案內容的雜湊）：外殼頁一改，sw.js 跟著變，手機才會換新版。
  */
 const VERSION = 'a22a33539cad';
-const CACHE = 'shell-' + VERSION;
 const FILES = ["./", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 const SCOPE = new URL('./', self.location).href;
+// 同一個網域底下可能有好幾個 App（同仁的智慧校園、家長的聯絡簿），快取是整個網域共用的：
+// 名字帶上自己的路徑，換版時只清自己的舊版，不會把別的 App 的外殼刪掉
+const MINE = 'shell:' + new URL(SCOPE).pathname + ':';
+const CACHE = MINE + VERSION;
 const OWN = new Set(FILES.map((f) => new URL(f, SCOPE).href));
 // 開頁時先問網路：有網路一定拿最新版。等這麼久還沒回應（或斷網），才拿存好的那份。
 const NAV_WAIT_MS = 4000;
@@ -20,7 +23,9 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('shell-') && k !== CACHE).map((k) => caches.delete(k))))
+    // 'shell-' 開頭的是改名前的舊版（只會有同仁版的），一起清掉
+    .then((keys) => Promise.all(keys.filter((k) => (k.startsWith(MINE) && k !== CACHE) || k.startsWith('shell-'))
+      .map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
@@ -34,8 +39,10 @@ self.addEventListener('fetch', (e) => {
 
 /** 開頁：外殼頁只有一個 index.html，不管網址後面帶什麼（例如 LINE 的 ?openExternalBrowser=1）都是同一份，存在 ./ 底下。 */
 async function openPage(e) {
+  // 只把「自己這一頁」存起來：同一個網域底下的另一個 App（例如家長版聯絡簿）不能被存成這個 App 的外殼
+  const mine = new URL(e.request.url).pathname === new URL(SCOPE).pathname;
   const net = fetch(e.request, { cache: 'no-cache' }).then((r) => {
-    if (r.ok && !r.redirected) {
+    if (mine && r.ok && !r.redirected) {
       const copy = r.clone();
       e.waitUntil(caches.open(CACHE).then((c) => c.put(SCOPE, copy)));
     }
@@ -47,7 +54,7 @@ async function openPage(e) {
     r = await Promise.race([net, new Promise((resolve) => setTimeout(resolve, NAV_WAIT_MS, null))]);
   } catch (err) { /* 斷網 */ }
   if (r) return r;
-  return (await caches.match(SCOPE)) || net;
+  return (mine && (await caches.match(SCOPE))) || net;
 }
 
 // ── 推播（PWA施作規劃書 P4）：帳號中心從主機送來的通知。內容只有標題、一句話、要打開的頁面（#p= 後面那段）。
