@@ -842,11 +842,36 @@ const Shell = (() => {
     if (doc.title) document.title = doc.title;
     window.scrollTo(0, 0);
 
-    for (const img of app.querySelectorAll('img[data-src]')) {
-      fetchBlobUrl(img.dataset.src)
-        .then((url) => { pageBlobs.push(url); img.src = url; })
-        .catch(() => { img.alt = '（圖片載入失敗）'; });
+    loadImages(Array.from(app.querySelectorAll('img[data-src]')));
+  }
+
+  // 頁面上的圖片：一次最多抓 IMG_PARALLEL 張（每支手機、整個系統都有流量上限，一口氣全要容易被擋），
+  // 被擋（系統忙碌）或網路一時不通就等一下再抓，最多 IMG_RETRY 次；換頁了就不抓了。
+  const IMG_PARALLEL = 4;
+  const IMG_RETRY = [1000, 3000, 6000];
+  function retryable(e) {
+    return !!e && (['busy', 'network', 'slow'].includes(e.kind) || /429|忙碌/.test(String(e.message || e)));
+  }
+  function loadImages(imgs) {
+    const queue = imgs.slice();
+    async function worker() {
+      while (queue.length) {
+        const img = queue.shift();
+        for (let attempt = 0; ; attempt++) {
+          if (!img.isConnected) break;
+          try {
+            const url = await fetchBlobUrl(img.dataset.src);
+            pageBlobs.push(url);
+            img.src = url;
+            break;
+          } catch (e) {
+            if (attempt >= IMG_RETRY.length || !retryable(e)) { img.alt = '（圖片載入失敗）'; break; }
+            await new Promise((r) => setTimeout(r, IMG_RETRY[attempt]));
+          }
+        }
+      }
     }
+    for (let i = 0; i < Math.min(IMG_PARALLEL, queue.length); i++) worker();
   }
 
   /** target=_blank：一定要在點擊當下就開視窗，不然會被當成彈出廣告擋掉，之後再把內容填進去。 */
