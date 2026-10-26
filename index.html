@@ -405,6 +405,12 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 .shell-error button { font-size: 14px; padding: 6px 12px; border-radius: 8px; border: 1px solid #fca5a5; background: #fff; color: #991b1b; }
 #fatal { margin: 8px; padding: 8px 12px; border: 2px solid #dc2626; border-radius: 10px; background: #fef2f2;
   color: #991b1b; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+/* 全螢幕（從主畫面打開）時標題列左邊的上一頁／下一頁（shell.js 的 Nav） */
+.shell-navwrap { display: flex; align-items: center; gap: 0; min-width: 0; margin-left: -10px; }
+.shell-navwrap .brand { min-width: 0; }
+.shell-nav { flex: 0 0 auto; width: 36px; height: 40px; padding: 0 0 4px; border: 0; background: transparent;
+  color: #2563eb; font-size: 30px; line-height: 1; cursor: pointer; }
+.shell-nav:active { opacity: .5; }
 [hidden] { display: none !important; }
 
 </style>
@@ -763,6 +769,52 @@ const Install = (() => {
   return { start };
 })();
 
+/** 上一頁／下一頁。從主畫面打開（全螢幕）時沒有瀏覽器的按鈕，iPhone 也沒有系統的返回鍵，
+ *  外殼頁在標題列左邊自己放一組；在瀏覽器裡用瀏覽器自己的，不重複放。
+ *  每一頁在歷史紀錄裡記著自己是第幾層（history.state.d），才知道還能不能往前、往後。 */
+const Nav = (() => {
+  let depth = (history.state && history.state.d) || 0;
+  let top = depth;                  // 往回走過之後，還可以「下一頁」回到的最深那一層
+
+  const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+  function setUrl(url, push) {
+    if (push) { depth += 1; top = depth; }
+    (push ? history.pushState : history.replaceState).call(history, { d: depth }, '', url);
+  }
+
+  function popped(state) { depth = (state && state.d) || 0; }
+
+  function button(label, title, fn) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'shell-nav';
+    b.textContent = label;
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  /** 頁面換好之後，把按鈕放進系統頁面的標題列（.topbar 的品牌名稱左邊）。沒有標題列的頁面（登入頁）不放。 */
+  function decorate(app) {
+    if (!standalone()) return;
+    const bar = app.querySelector('.topbar');
+    const brand = bar && bar.querySelector('.brand');
+    if (!brand) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'shell-navwrap';
+    const back = button('‹', '上一頁', () => history.back());
+    const fwd = button('›', '下一頁', () => history.forward());
+    back.hidden = depth <= 0;
+    fwd.hidden = top <= depth;
+    brand.replaceWith(wrap);
+    wrap.append(back, fwd, brand);
+  }
+
+  return { setUrl, popped, decorate };
+})();
+
 /** 頁面的短暫快取：剛看過、或背景先抓好的頁面，90 秒內再開就直接顯示，不必再等 Google 轉送一趟（每趟 2～3 秒）。
  *  任何送出（POST）都會整個清掉，資料改過之後一定重新抓；含 Face ID 選項（data-options）的頁面每次都要新的，不放進來。 */
 const PageCache = (() => {
@@ -859,7 +911,7 @@ const Shell = (() => {
   function setHash(path, push) {
     const url = '#p=' + encodeURIComponent(path);
     if (location.hash === url) return;
-    (push ? history.pushState : history.replaceState).call(history, null, '', url);
+    Nav.setUrl(url, push);
   }
 
   async function request(method, path, body, contentType) {
@@ -938,6 +990,7 @@ const Shell = (() => {
       if (ctype.startsWith('text/html')) {
         await render(td.decode(r.body), path);
         setHash(path, !opts.replace && path !== readHash());
+        Nav.decorate(app);
         navigating = false;
         schedulePrefetch();
         return;
@@ -1148,7 +1201,7 @@ const Shell = (() => {
     return nativeSubmit.call(this);
   };
 
-  window.addEventListener('popstate', () => go('GET', readHash(), null, null, { replace: true }));
+  window.addEventListener('popstate', (e) => { Nav.popped(e.state); go('GET', readHash(), null, null, { replace: true }); });
 
   function start() {
     // 從 LINE 點開時改用手機的預設瀏覽器（Safari／Chrome）：LINE 內建瀏覽器很可能不支援 Face ID／指紋，
