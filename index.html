@@ -15,8 +15,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<style id="appcss" data-href="/static/style.css?v=b9d825a035d2">
-/* 請假系統樣式：手機優先。老師用手機請假、主管用手機簽核，桌機只是加寬。 */
+<style id="appcss" data-href="/auth/static/campus.css?v=bf51994816">
+/* 智慧校園系統共用樣式：手機優先，桌機只是加寬。基本款沿用請假系統的 style.css，
+   各艙看起來是同一套系統。外殼頁只抓頁面的第一個樣式表，所以各艙自己的樣式也寫在這裡。 */
 :root{
   --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --ink:#1f2937; --muted:#6b7280;
   --brand:#2563eb; --brand-d:#1d4ed8; --risk:#dc2626; --notice:#d97706; --ok:#059669;
@@ -25,14 +26,15 @@
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font-family:"PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
-  background:var(--bg);color:var(--ink);line-height:1.6;
-  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom))}
+  background:var(--bg);color:var(--ink);line-height:1.6}
+body.has-tabbar{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom))}
 a{color:var(--brand);text-decoration:none}
 a:hover{text-decoration:underline}
 
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;
   border-bottom:1px solid var(--line);padding:0 16px;height:52px;position:sticky;top:0;z-index:20}
-.brand{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.brand:hover{text-decoration:none}
 .brand .ver{display:inline-block;font-weight:500;font-size:11px;color:var(--muted);
   vertical-align:2px;border:1px solid var(--line);border-radius:999px;padding:0 6px;margin-left:2px}
 .who{font-size:13px;color:var(--muted);white-space:nowrap}
@@ -40,51 +42,28 @@ a:hover{text-decoration:underline}
 
 .container{max-width:900px;margin:16px auto;padding:0 14px}
 
-/* 底部導覽：手機主要的切換方式 */
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#fff;
-  border-top:1px solid var(--line);height:var(--nav-h);
-  padding-bottom:env(safe-area-inset-bottom)}
+  border-top:1px solid var(--line);height:var(--nav-h);padding-bottom:env(safe-area-inset-bottom)}
 .tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:2px;font-size:11px;color:var(--muted);text-decoration:none;position:relative}
 .tabbar a .ico{font-size:19px;line-height:1}
 .tabbar a.on{color:var(--brand);font-weight:600}
-.tabbar .dot{position:absolute;top:6px;left:50%;margin-left:6px;min-width:17px;height:17px;
-  border-radius:999px;background:var(--risk);color:#fff;font-size:11px;line-height:17px;
-  text-align:center;padding:0 4px;font-weight:600}
+.dot{display:inline-block;min-width:18px;height:18px;border-radius:999px;background:var(--risk);color:#fff;
+  font-size:11px;line-height:18px;text-align:center;padding:0 5px;font-weight:600;vertical-align:1px}
 
 h1{font-size:21px;margin:0 0 4px}
 h2{font-size:16px;margin:22px 0 10px}
 .sub{color:var(--muted);margin:0 0 16px;font-size:14px}
 
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;
-  margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
 .card.tight{padding:12px 14px}
 
-/* 餘額卡 */
-.bal{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px}
-.bal .b{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;
-  text-align:center}
-.bal .b .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
-.bal .b .l{color:var(--muted);font-size:12px;margin-top:2px}
-.bal .b .s{color:var(--muted);font-size:11px}
-.bal .b.low .n{color:var(--risk)}
-
-/* 假單列 */
-.reqs{display:flex;flex-direction:column;gap:8px}
-.req{display:block;background:#fff;border:1px solid var(--line);border-radius:12px;
-  padding:12px 14px;color:var(--ink)}
-.req:hover{text-decoration:none;border-color:var(--brand)}
-.req .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.req .t{font-weight:600}
-.req .d{color:var(--muted);font-size:13px;margin-top:2px}
-.req .who2{font-size:13px;color:var(--muted)}
-
-.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;
-  white-space:nowrap}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;white-space:nowrap}
 .badge.on{background:#dcfce7;color:#166534}
 .badge.off{background:#f3f4f6;color:#6b7280}
 .badge.risk{background:#fee2e2;color:#991b1b}
 .badge.notice{background:#fef3c7;color:#92400e}
+.badge.brand{background:#dbeafe;color:#1e40af}
 
 .alert{border-radius:10px;padding:11px 14px;margin-bottom:12px;border-left:4px solid;font-size:14px}
 .alert.risk{background:#fef2f2;border-color:var(--risk)}
@@ -96,14 +75,14 @@ label{display:block;font-size:13px;color:var(--muted);margin:14px 0 5px;font-wei
 input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);
   border-radius:10px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
 /* 16px 是為了避免 iOS Safari 聚焦時自動放大頁面 */
+input[type=checkbox],input[type=radio]{width:auto;padding:0;margin:0 6px 0 0;vertical-align:-2px}
 textarea{min-height:80px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid #bfdbfe;border-color:var(--brand)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .hint{font-size:12px;color:var(--muted);margin-top:5px}
 
 .btn{display:inline-block;background:var(--brand);color:#fff;border:0;border-radius:10px;
-  padding:12px 18px;font-size:15px;font-weight:500;cursor:pointer;text-align:center;
-  font-family:inherit}
+  padding:12px 18px;font-size:15px;font-weight:500;cursor:pointer;text-align:center;font-family:inherit}
 .btn:hover{background:var(--brand-d);text-decoration:none}
 .btn:disabled{background:#c7d2fe;cursor:not-allowed}
 .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
@@ -114,272 +93,84 @@ input:focus,select:focus,textarea:focus{outline:2px solid #bfdbfe;border-color:v
 .btn.wide{width:100%}
 .actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
 .actions .btn{flex:1;min-width:120px}
+.inline{display:inline}
 
-/* 明細用的欄位表 */
 .kv{width:100%;font-size:14px;border-collapse:collapse}
 .kv th{text-align:left;color:var(--muted);font-weight:500;padding:7px 12px 7px 0;
   white-space:nowrap;vertical-align:top;width:1%;border:0}
 .kv td{padding:7px 0;border:0}
 
-.trail{list-style:none;margin:0;padding:0;font-size:14px}
-.trail li{padding:9px 0;border-bottom:1px solid var(--line)}
-.trail li:last-child{border:0}
-.trail .t{color:var(--muted);font-size:12px}
-
 table.grid{width:100%;border-collapse:collapse;font-size:13px}
-table.grid th,table.grid td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+table.grid th,table.grid td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 table.grid th{color:var(--muted);font-weight:600;background:#fafbfc;white-space:nowrap}
 table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -16px;padding:0 16px}
 
-/* 行事曆 */
-/* 週一~五給足空間，六日只留窄欄位：幼兒園週末不上班，那兩格沒有內容 */
-.calbar{margin:0 0 12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
-.calbar .ttl{font-size:24px;font-weight:600;color:var(--ink);text-align:center;
-  line-height:1.25;font-variant-numeric:tabular-nums}
-.calbar .ttl b{font-size:38px;font-weight:800;letter-spacing:.5px}
-.calbar .ttl .now{display:inline-block;margin-left:8px;font-size:14px;font-weight:600;
-  color:var(--brand);background:#eff6ff;border-radius:999px;padding:2px 10px;
-  vertical-align:6px}
-.calbar .nav{display:flex;align-items:center;justify-content:space-between;
-  gap:8px;margin-top:8px}
-.calbar .nav .btn{font-size:14px;padding:7px 11px;white-space:nowrap;
-  font-variant-numeric:tabular-nums}
-@media (max-width:380px){
-  .calbar .ttl{font-size:20px}
-  .calbar .ttl b{font-size:32px}
-  .calbar .nav .btn{font-size:13px;padding:7px 9px}
-}
-.cal{display:grid;grid-template-columns:repeat(5,1fr) .5fr .5fr;gap:3px}
-.cal .hd{text-align:center;font-size:12px;color:var(--muted);padding:4px 0}
-.cal .cell{background:#fff;border:1px solid var(--line);border-radius:8px;min-height:78px;
-  padding:4px;font-size:11px;overflow:hidden}
-.cal .cell.off{background:#f8fafc;color:var(--muted)}
-.cal .cell .dn{font-weight:600;font-size:12px}
-.cal .cell .p{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  color:var(--brand);margin-top:2px;line-height:1.35}
-.cal .cell .p .tm{display:block;font-size:10px;color:var(--muted);
-  font-variant-numeric:tabular-nums}
-.cal .cell .p.more{color:var(--muted);font-size:10px}
-.cal .cell .hol{display:block;font-size:10px;color:var(--notice);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* 特殊任務禁休：那幾天不准請假，但仍是正常上班日，所以不套 .off 的灰底 */
-.cal .cell .bo{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  font-size:10px;line-height:1.4;margin-top:2px;padding:1px 4px;border-radius:4px;
-  background:#fee2e2;color:#991b1b;font-weight:600}
-.cal .cell .bo.warn{background:#fef3c7;color:#92400e}
-.cal .cell.quiet{background:#f8fafc}
-.cal .cell.quiet .dn{color:var(--muted);font-weight:400}
-.cal .hd.wk{color:#cbd5e1}
-.cal .cell.blank{background:transparent;border:0}
-
-.subtabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line);
-  overflow-x:auto}
-.subtabs a{padding:8px 13px;font-size:14px;color:var(--muted);white-space:nowrap;
-  border-bottom:2px solid transparent}
+.subtabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line);overflow-x:auto}
+.subtabs a{padding:8px 13px;font-size:14px;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent}
 .subtabs a.on{color:var(--brand);font-weight:600;border-color:var(--brand)}
-
-/* 同一個分頁裡的幾個功能（例如「請假」裡的我的假單／我要請假／簽核），用切換鈕換 */
-.modnav{display:flex;gap:4px;margin:0 0 14px;padding:4px;background:#eef2f7;border-radius:12px}
-.modnav a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
-  border-radius:9px;font-size:15px;color:var(--muted);text-decoration:none;white-space:nowrap}
-.modnav a.on{background:#fff;color:var(--brand);font-weight:600;box-shadow:0 1px 3px rgba(15,23,42,.12)}
-.modnav .dot{min-width:18px;height:18px;border-radius:999px;background:var(--risk);color:#fff;
-  font-size:11px;line-height:18px;text-align:center;padding:0 5px;font-weight:600}
 
 .foot{text-align:center;color:var(--muted);font-size:12px;padding:18px 14px 26px}
 .empty{text-align:center;color:var(--muted);padding:28px 10px;font-size:14px}
 .pw{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;font-weight:700;
   letter-spacing:2px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:1px 8px}
+.muted{color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
-/* 登入頁 */
 .login-wrap{max-width:360px;margin:8vh auto;padding:0 18px}
 .login-wrap .logo{text-align:center;font-size:30px;margin-bottom:6px}
 .login-wrap h1{text-align:center;font-size:20px;margin-bottom:22px}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:16px 0}
+.or::before,.or::after{content:"";flex:1;border-top:1px solid var(--line)}
+
+.safebar{background:#fef3c7;border:2px solid #d97706;border-radius:8px;padding:10px 14px;
+  margin-bottom:14px;font-size:13.5px;color:#7c2d12;line-height:1.7}
+.stagingbar{background:repeating-linear-gradient(-45deg,#ede9fe,#ede9fe 12px,#ddd6fe 12px,#ddd6fe 24px);
+  border-bottom:2px solid #7c3aed;color:#4c1d95;padding:8px 14px;font-size:13.5px;text-align:center;line-height:1.6}
+
+/* ── 入口首頁 ─────────────────────────────────────────────── */
+/* 現在該做的事：一顆大按鈕，點了直接進那個模組（§3.12）。不強制跳轉，下面照常列出全部功能。 */
+.now{display:flex;align-items:center;gap:14px;background:var(--brand);color:#fff;border-radius:16px;
+  padding:16px 18px;margin-bottom:10px;text-decoration:none;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+.now:hover{background:var(--brand-d);text-decoration:none}
+.now .t{font-variant-numeric:tabular-nums;font-size:14px;opacity:.85;white-space:nowrap}
+.now .n{font-size:20px;font-weight:700;flex:1}
+.now .go{font-size:22px}
+.now.info{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.next{font-size:14px;color:var(--muted);margin:0 0 14px;padding:0 4px}
+.next b{color:var(--ink);font-variant-numeric:tabular-nums}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 6px;color:var(--ink);
+  font-size:14px;text-align:center}
+.tile:hover{border-color:var(--brand);text-decoration:none}
+.tile .ico{font-size:26px;line-height:1}
+.tile .dot{position:absolute;top:8px;right:8px}
+.todo{list-style:none;margin:0;padding:0}
+.todo li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.todo li:first-child{border-top:0}
+
+/* ── 帳號頁的權限勾選 ──────────────────────────────────────── */
+.perm{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.perm:first-child{border-top:0}
+.perm .what{flex:1}
+.perm .what b{display:block;font-size:14px}
+.perm .what span{font-size:12px;color:var(--muted)}
+.perm select{width:auto;font-size:14px;padding:6px 8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;
+  padding:5px 12px;font-size:14px;background:#fff;cursor:pointer}
+.chip input{margin:0}
 
 @media (min-width:720px){
-  body{padding-bottom:0}
+  body.has-tabbar{padding-bottom:0}
   .tabbar{position:static;height:auto;border-top:0;border-bottom:1px solid var(--line);
     max-width:900px;margin:0 auto;background:transparent}
   .tabbar a{flex:0 0 auto;flex-direction:row;gap:6px;font-size:14px;padding:12px 16px}
   .tabbar a .ico{font-size:15px}
   .tabbar a.on{border-bottom:2px solid var(--brand)}
-  .tabbar .dot{position:static;margin:0}
-  .two{grid-template-columns:1fr 1fr}
-  .cal .cell{min-height:104px;font-size:12px}
   .scroll{margin:0;padding:0}
 }
-
-/* ── 提醒文字裡的日期與數量：主管一眼要看到的重點 ─────────── */
-.hl{
-  font-weight:700;
-  background:#fde68a;
-  color:#78350f;
-  padding:1px 5px;
-  border-radius:4px;
-  white-space:nowrap;
-}
-.alert.risk .hl{background:#fecaca;color:#7f1d1d}
-
-/* ── 簽核參考：同期間其他人的請假 ──────────────────────── */
-.nearby{list-style:none;margin:0;padding:0}
-.nearby li{
-  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
-  padding:9px 0;border-top:1px solid var(--line);font-size:14px;
-}
-.nearby li:first-child{border-top:0}
-.nearby .d{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
-.nearby .nm{font-weight:600}
-.nearby li.same{background:#fffbeb;margin:0 -14px;padding-left:14px;padding-right:14px}
-.nearby li.same .d{color:#78350f}
-.nearby-empty{color:var(--muted);font-size:14px;padding:6px 0}
-
-/* ── 安全模式橫幅 ─────────────────────────────────────────── */
-/* 刻意做得顯眼：安靜的安全模式會讓人以為信寄出去了 */
-.safebar {
-  background: #fef3c7;
-  border: 2px solid #d97706;
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  font-size: 13.5px;
-  color: #7c2d12;
-  line-height: 1.7;
-}
-.safebar b { color: #7c2d12; }
-
-/* ── 測試環境橫幅（新架構測試版）─────────────────────────── */
-/* 每一頁最上面都有，而且跟正式版的配色明顯不同：在這裡請的假不會生效，不能讓人誤會 */
-.stagingbar {
-  background: repeating-linear-gradient(-45deg, #ede9fe, #ede9fe 12px, #ddd6fe 12px, #ddd6fe 24px);
-  border-bottom: 2px solid #7c3aed;
-  color: #4c1d95;
-  padding: 8px 14px;
-  font-size: 13.5px;
-  text-align: center;
-  line-height: 1.6;
-}
-.stagingbar b { color: #6d28d9; }
-
-/* 請假辦法：請假頁的摺疊說明，預設收合，不擋住填表 */
-.rules{background:var(--card);border:1px solid var(--line);border-radius:14px;
-  padding:0 14px;margin:0 0 16px}
-.rules>summary{list-style:none;cursor:pointer;padding:13px 0;font-weight:600;
-  font-size:15px;color:var(--brand);display:flex;align-items:center;gap:6px}
-.rules>summary::-webkit-details-marker{display:none}
-.rules>summary::before{content:"📖"}
-.rules>summary::after{content:"▾";margin-left:auto;color:var(--muted);font-size:13px}
-.rules[open]>summary{border-bottom:1px solid var(--line)}
-.rules[open]>summary::after{content:"▴"}
-.rules h3{font-size:14px;margin:16px 0 6px;color:var(--ink)}
-.rules ul{margin:0 0 6px;padding-left:20px}
-.rules li{font-size:13.5px;color:var(--ink);margin:4px 0;line-height:1.65}
-.rules table.grid{font-size:13px;margin:4px 0 8px}
-.rules table.grid th,.rules table.grid td{padding:6px 8px}
-.rules .scroll{margin:0 -14px;padding:0 14px}
-.rules>*:last-child{padding-bottom:14px}
-
-/* hidden 屬性一律藏起來（.actions 等有 display 設定的元素也一樣） */
-[hidden]{display:none!important}
-
-/* ── 巡園 ── */
-.seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.seg.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.seg input{position:absolute;opacity:0;pointer-events:none}
-.seg label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);
-  border-radius:10px;background:#fff;font-size:15px;font-weight:500;cursor:pointer;margin:0}
-.seg input:checked+label{border-color:#166534;background:#dcfce7;color:#166534}
-.seg input.bad:checked+label{border-color:#991b1b;background:#fee2e2;color:#991b1b}
-.seg input.fair:checked+label{border-color:#b45309;background:#fef3c7;color:#92400e}
-.seg input.pick:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
-.seg input:focus-visible+label{outline:2px solid #1d4ed8;outline-offset:2px}
-.pitem{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:10px}
-.pitem.bad{border-color:#fca5a5}
-.pitem.fair{border-color:#fcd34d}
-.pissue{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:10px}
-.parea{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;min-height:56px;
-  box-sizing:border-box;border:1px solid var(--line);border-radius:14px;background:#fff;color:inherit;text-decoration:none}
-.pbig{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#2563eb;color:#fff;
-  border-radius:18px;padding:18px 20px;text-decoration:none;border:0;width:100%;font:inherit;cursor:pointer}
-.ptags{display:flex;flex-wrap:wrap;gap:6px}
-.ptags input{position:absolute;opacity:0;pointer-events:none}
-.ptags label{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:1px solid var(--line);
-  border-radius:999px;background:#fff;font-size:14px;cursor:pointer;margin:0}
-.ptags input:checked+label{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a}
-.pphoto{width:100%;max-height:260px;object-fit:cover;border-radius:12px;background:#e5e7eb}
-.pblock{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin:0 0 16px}
-.cphotos{position:relative;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
-.pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
-.pgrid:empty{display:none}
-.pgrid figure{margin:0;display:flex;flex-direction:column;gap:4px}
-.pgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#e5e7eb;cursor:zoom-in}
-.pgrid figure.big{grid-column:1/-1}
-.pgrid figure.big img{aspect-ratio:auto;max-height:none;object-fit:contain;cursor:zoom-out}
-.pdrop{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin:0}
-.pdrop input{width:18px;height:18px}
-.pgrid figure:has(.pdrop input:checked) img{opacity:.35}
-.pfile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.ptimeline{list-style:none;margin:0;padding:0}
-.ptimeline li{position:relative;padding:0 0 14px 22px;border-left:2px solid var(--line);margin-left:6px}
-.ptimeline li:last-child{border-left-color:transparent}
-.ptimeline li::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:999px;background:#9ca3af}
-.ptimeline li.found::before{background:#991b1b}.ptimeline li.reported::before{background:#1d4ed8}
-.ptimeline li.closed::before{background:#166534}.ptimeline li.returned::before{background:#b45309}
-
-
-/* 教學日誌：觀察量表（點選式） */
-.obsstep{font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 6px}
-.obsbox .obsstep:first-child{margin-top:0}
-.obsstep .hint{font-weight:400}
-.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px}
-.chips.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.chips.one{grid-template-columns:1fr;margin-top:6px}
-.chip{position:relative;min-height:40px;padding:6px 2px;border:1px solid var(--line);border-radius:10px;background:#fff;
-  color:var(--ink);font:inherit;font-size:14px;line-height:1.25;cursor:pointer}
-.chips.one .chip{text-align:left;padding:8px 12px}
-.chip.on{border-color:#1d4ed8;background:#dbeafe;color:#1e3a8a;font-weight:700}
-.chip.lv1.on{border-color:#991b1b;background:#fee2e2;color:#991b1b}
-.chip.lv2.on{border-color:#b45309;background:#fef3c7;color:#92400e}
-.chip.lv3.on{border-color:#166534;background:#dcfce7;color:#166534}
-.chip .n{position:absolute;top:1px;right:5px;font-style:normal;font-size:11px;font-weight:700;color:#166534}
-.obslist{margin-top:10px}
-.obsrow{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
-.obsrow.dropped>div{opacity:.4;text-decoration:line-through}
-.obsdrop{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin:0;white-space:nowrap;font-size:14px;color:var(--muted)}
-.obsdrop input{width:auto;min-height:0;margin:0}
-.lvtag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px}
-.lvtag.lv1{background:#fee2e2;color:#991b1b}
-.lvtag.lv2{background:#fef3c7;color:#92400e}
-.lvtag.lv3{background:#dcfce7;color:#166534}
-
-/* 黏在底部的儲存列：手機上要停在分頁列上面，不然會被蓋住 */
-.stickybar{position:sticky;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:10;background:var(--bg);padding:10px 0}
-@media (min-width:720px){ .stickybar{bottom:0} }
-
-/* 點名 */
-.chips.five{grid-template-columns:repeat(4,minmax(0,1fr))}
-.chip[data-st="遲到"],.chip[data-st="遲到"].on{border-color:#b45309;background:#fef3c7;color:#92400e}
-.chip[data-st="病假"],.chip[data-st="病假"].on{border-color:#991b1b;background:#fee2e2;color:#991b1b}
-.chip[data-st="事假"],.chip[data-st="事假"].on{border-color:#4338ca;background:#e0e7ff;color:#3730a3}
-.chip[data-st="未到"],.chip[data-st="未到"].on{border-color:#6b7280;background:#e5e7eb;color:#374151}
-#brush .chip{opacity:.55}
-#brush .chip.on{opacity:1;font-weight:700;box-shadow:0 0 0 2px var(--bg),0 0 0 4px currentColor}
-.rollkids .chip[data-st="到"] .n{display:none}
-.rollkids .chip .n{position:static;display:block;font-size:11px;color:inherit}
-.rolltally{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;font-size:16px;border-bottom:1px solid var(--line)}
-.rolltally b{font-size:22px}
-.rolltally span{margin-left:10px;font-size:14px;color:var(--muted)}
-.rnote{align-items:center}
-.rnote .rst{font-size:12px;color:var(--muted)}
-.rollhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.rollnum b{font-size:20px}
-.bignum{font-size:52px;font-weight:800;line-height:1.1;margin:4px 0}
-.stepper{display:flex;gap:8px;align-items:center}
-.stepper input{text-align:center;font-size:22px;font-weight:700;flex:1;min-width:0}
-.stepper .btn{min-width:56px;font-size:22px}
-.pickchip{display:flex;align-items:center;justify-content:center;margin:0}
-.pickchip input{display:none}
-.pickchip:has(input:checked){border-color:#991b1b;background:#fee2e2;color:#991b1b;font-weight:700}
 
 </style>
 <style>
@@ -426,7 +217,7 @@ function showFatal(t) {
 }
 </script>
 </head>
-<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://bk-gw-relay-test.bklkidsgarden.workers.dev/" data-home="/" data-login="/login" data-session="leave_session">
+<body data-pubkey="BIDalvOq+EgrsdL8UPLgARUqtbyjCn6ZdfWbgvAIm8ZGMNUdRxhv/ZtEkQztYKiTq5CHRxOB/4fImg+Huej+5f4=" data-exec="https://bk-gw-relay-test.bklkidsgarden.workers.dev/" data-home="/auth/home" data-login="/auth/login" data-session="campus_session">
 <pre id="fatal" hidden></pre>
 <div id="busy" hidden>連線中…</div>
 <div id="sheet" hidden></div>

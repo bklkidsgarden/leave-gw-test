@@ -3,7 +3,7 @@
  * 不在手機上留下任何資料（PWA施作規劃書 §3）。
  * build.py 產生 sw.js 時填入 VERSION（這次產生的檔案內容的雜湊）：外殼頁一改，sw.js 跟著變，手機才會換新版。
  */
-const VERSION = '6db2b31e7e42';
+const VERSION = 'a22a33539cad';
 const CACHE = 'shell-' + VERSION;
 const FILES = ["./", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 const SCOPE = new URL('./', self.location).href;
