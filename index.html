@@ -483,7 +483,78 @@ const Downloads = (() => {
     sheet.hidden = false;
   }
 
-  return { offer, close };
+  // 好幾個檔案一起存（例如整本相簿）：手機支援「分享檔案」的（iPhone、Android）給「存到手機」，一次存進相簿；
+  // 不支援的（電腦）就在這台裝置上打包成 ZIP 再下載（打包在手機／電腦上做，不經過主機，沒有大小上限的問題）。
+  function offerFiles(files, zipName) {
+    const total = files.reduce((n, f) => n + f.size, 0);
+    const title = document.createElement('p');
+    title.className = 'sheet-title';
+    title.textContent = '📷 ' + files.length + ' 個檔案（' + (total / 1024 / 1024).toFixed(1) + ' MB）準備好了';
+    const row = document.createElement('div');
+    row.className = 'sheet-row';
+    const canShare = !!(navigator.canShare && navigator.share) && (() => {
+      try { return navigator.canShare({ files }); } catch (e) { return false; }
+    })();
+    if (canShare) {
+      row.append(button('存到手機', () => {
+        navigator.share({ files }).then(close).catch((e) => { if (e && e.name !== 'AbortError') toastLater('存不了：' + e.message); });
+      }, 'primary'));
+    }
+    row.append(button(canShare ? '打包成 ZIP' : '下載 ZIP', async () => {
+      const zip = await Zip.build(files);
+      offer(new Uint8Array(await zip.arrayBuffer()), 'application/zip', zipName);
+    }, canShare ? '' : 'primary'), button('關閉', close, 'ghost'));
+    sheet.replaceChildren(title, row);
+    sheet.hidden = false;
+  }
+  function toastLater(text) { setTimeout(() => { try { Shell.toast(text); } catch (e) { /* 無妨 */ } }, 0); }
+
+  return { offer, offerFiles, close };
+})();
+
+/** 最簡單的 ZIP（只包、不壓縮：照片本來就壓縮過了）。檔名用 UTF-8。 */
+const Zip = (() => {
+  const table = new Uint32Array(256).map((_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  async function build(files) {
+    const te = new TextEncoder();
+    const parts = [], central = [];
+    let offset = 0;
+    const d = new Date();
+    const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    for (const f of files) {
+      const data = new Uint8Array(await f.arrayBuffer());
+      const name = te.encode(f.name);
+      const crc = crc32(data);
+      const local = new DataView(new ArrayBuffer(30));
+      [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, time, 2], [12, date, 2], [14, crc, 4],
+       [18, data.length, 4], [22, data.length, 4], [26, name.length, 2], [28, 0, 2]]
+        .forEach(([o, v, n]) => (n === 4 ? local.setUint32(o, v, true) : local.setUint16(o, v, true)));
+      const cen = new DataView(new ArrayBuffer(46));
+      [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, time, 2], [14, date, 2], [16, crc, 4],
+       [20, data.length, 4], [24, data.length, 4], [28, name.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2],
+       [38, 0, 4], [42, offset, 4]]
+        .forEach(([o, v, n]) => (n === 4 ? cen.setUint32(o, v, true) : cen.setUint16(o, v, true)));
+      parts.push(local, name, data);
+      central.push(cen, name);
+      offset += 30 + name.length + data.length;
+    }
+    const size = central.reduce((n, c) => n + c.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, files.length, 2], [10, files.length, 2], [12, size, 4], [16, offset, 4], [20, 0, 2]]
+      .forEach(([o, v, n]) => (n === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true)));
+    return new Blob([...parts, ...central, end], { type: 'application/zip' });
+  }
+  return { build };
 })();
 
 /** 「加入主畫面」的提示。從主畫面打開是全螢幕、登入記得比較久，也是之後收推播的前提（PWA施作規劃書 P1）。
@@ -1080,7 +1151,39 @@ const Shell = (() => {
     Install.start();
   }
 
-  return { start, toast };
+  /** 給頁面用：抓一個檔案（經過加密通道），被擋或一時連不上就等一下再抓。回傳 Blob。 */
+  async function fetchBlob(path) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const r = await request('GET', path);
+        if (r.status !== 200) throw new Error('HTTP ' + r.status);
+        return new Blob([r.body], { type: r.headers['content-type'] || 'application/octet-stream' });
+      } catch (e) {
+        if (attempt >= IMG_RETRY.length || !retryable(e)) throw e;
+        await new Promise((res) => setTimeout(res, IMG_RETRY[attempt]));
+      }
+    }
+  }
+
+  /** 給頁面用：整批下載。items＝[{path, name}]，onProgress(已抓, 全部)。抓完跳出「存到手機／下載 ZIP」。 */
+  async function downloadAll(items, zipName, onProgress) {
+    const files = new Array(items.length);
+    let done = 0;
+    const queue = items.map((it, i) => [it, i]);
+    async function worker() {
+      while (queue.length) {
+        const [it, i] = queue.shift();
+        const b = await fetchBlob(it.path);
+        files[i] = new File([b], it.name, { type: b.type || 'image/jpeg' });
+        done++;
+        if (onProgress) onProgress(done, items.length);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(IMG_PARALLEL, items.length) }, worker));
+    Downloads.offerFiles(files, zipName);
+  }
+
+  return { start, toast, fetchBlob, downloadAll };
 })();
 
 Shell.start();
